@@ -3,7 +3,7 @@
 	"label": "Numix themes",
 	"description": "GTK and icon themes from the Numix Project.",
 	"license": "GPLv3",
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

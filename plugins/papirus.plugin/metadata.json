@@ -3,7 +3,7 @@
 	"label": "Papirus icon theme",
 	"description": "Icon themes from the Papirus Project.",
 	"license": ["GNU LGPL v3.0"],
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

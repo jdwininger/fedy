@@ -2,7 +2,7 @@
 	"label": "Flat-Remix Theme",
 	"description": "Flat Remix theme is mostly flat with some shadows, highlights and gradients for some depth, and uses a colorful palette with nice contrasts.",
 	"license": "GPLv3",
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

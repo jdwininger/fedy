@@ -4,6 +4,7 @@ imports.searchPath.unshift('.');
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
+const Gdk = imports.gi.Gdk;
 const GdkPixbuf = imports.gi.GdkPixbuf;
 const Notify = imports.gi.Notify;
 const Pango = imports.gi.Pango;
@@ -32,30 +33,27 @@ const Application = new Lang.Class({
     },
 
     _buildUI: function() {
-        this._window = new Gtk.ApplicationWindow({
+        this._window = new Gtk.Window({
                 application: this.application,
-                window_position: Gtk.WindowPosition.CENTER,
                 title: APP_NAME
             });
 
         try {
-            let icon = Gtk.IconTheme.get_default().load_icon("fedy", 48, 0);
-
-            this._window.set_icon(icon);
+            this._window.set_icon_name("fedy");
         } catch (e) {
             print("Failed to load application icon: " + e.message);
         }
 
-        this._headerbar = new Gtk.HeaderBar({ show_close_button: true });
+        this._headerbar = new Gtk.HeaderBar({ show_title_buttons: true });
 
         this._renderPlugins();
 
         this._window.set_default_size(800, 600);
         this._window.set_titlebar(this._headerbar);
-        this._window.show_all();
+        this._window.show();
 
         // Hide the window if any task is running
-        this._window.connect("delete_event", w => {
+        this._window.connect("close-request", w => {
             if (this._queue && this._queue.length) {
                 w.hide();
 
@@ -71,9 +69,14 @@ const Application = new Lang.Class({
     },
 
     _onStartup: function() {
-        this._loadConfig();
-        this._loadPlugins();
-        this._buildUI();
+        try {
+            this._loadConfig();
+            this._loadPlugins();
+            this._buildUI();
+        } catch (e) {
+            print("Error during startup: " + e.message);
+            this.application.quit();
+        }
     },
 
     _hashString: function(str) {
@@ -178,7 +181,8 @@ const Application = new Lang.Class({
         let [ status, argvp ] = GLib.shell_parse_argv(command);
 
         if (status === false) {
-            callback(null, 1);
+            callback(null, 1, new Error("Failed to parse command: " + command));
+            return;
         }
 
         let envp = GLib.get_environ();
@@ -198,11 +202,11 @@ const Application = new Lang.Class({
             print("Failed to run process: " + e.message);
 
             callback(null, 1, e);
+            return;
         }
 
         if (ok === false) {
-            callback(pid, 1);
-
+            callback(pid, 1, new Error("Failed to spawn process"));
             return;
         }
 
@@ -365,66 +369,102 @@ const Application = new Lang.Class({
     },
 
     _handleTask: function(button, spinner, plugin) {
-        spinner.start();
+        try {
+            spinner.start();
 
-        button.set_label("Working...");
-        button.get_style_context().remove_class("suggested-action");
-        button.get_style_context().remove_class("destructive-action");
-        button.set_sensitive(false);
+            button.set_label("Working...");
+            button.get_style_context().remove_class("suggested-action");
+            button.get_style_context().remove_class("destructive-action");
+            button.set_sensitive(false);
 
-        this._getPluginStatus(plugin, (action) => {
-            this._runPluginCommand(plugin, action.command, (pid, status) => {
+            this._getPluginStatus(plugin, (action) => {
+                this._runPluginCommand(plugin, action.command, (pid, status, error) => {
 
-                try {
-                    const notification = new Notify.Notification({
-                        summary: "Task " + (status === 0 ? "completed!" : "failed!"),
-                        body: plugin.label + " (" + action.label + ") " + (status === 0 ? "successfully completed." : "failed."),
-                        icon_name: "fedy",
-                        id: this._hashString(plugin.category + plugin.label)
-                    });
+                    let summary, body, urgency = Notify.Urgency.NORMAL;
 
-                    if (status !== 0) {
-                        notification.set_urgency(Notify.Urgency.CRITICAL);
+                    if (error) {
+                        summary = "Task failed!";
+                        body = plugin.label + " (" + action.label + ") failed with error: " + error.message;
+                        urgency = Notify.Urgency.CRITICAL;
+                    } else if (status === 0) {
+                        summary = "Task completed!";
+                        body = plugin.label + " (" + action.label + ") successfully completed.";
+                    } else {
+                        summary = "Task failed!";
+                        body = plugin.label + " (" + action.label + ") failed with exit code " + status;
+                        urgency = Notify.Urgency.CRITICAL;
                     }
 
-                    notification.set_timeout(1000);
+                    try {
+                        const notification = new Notify.Notification({
+                            summary: summary,
+                            body: body,
+                            icon_name: "fedy",
+                            id: this._hashString(plugin.category + plugin.label)
+                        });
 
-                    notification.show();
-                } catch (e) {
-                    print("Failed to show notification: " + e.message);
-                }
+                        notification.set_urgency(urgency);
+                        notification.set_timeout(1000);
+                        notification.show();
+                    } catch (e) {
+                        print("Failed to show notification: " + e.message);
+                    }
 
-                if (!this._window.visible && !(this._queue && this._queue.length)) {
-                    this._window.close();
+                    if (!this._window.visible && !(this._queue && this._queue.length)) {
+                        this._window.close();
 
-                    return;
-                }
+                        return;
+                    }
 
-                spinner.stop();
+                    spinner.stop();
 
-                if (status === 0) {
-                    button.set_label("Finished!");
-                } else {
-                    button.set_label("Error!");
-                }
+                    if (status === 0) {
+                        button.set_label("Finished!");
+                    } else {
+                        button.set_label("Error!");
+                    }
 
-                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
-                    this._setButtonState(button, plugin);
+                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                        this._setButtonState(button, plugin);
 
-                    return false;
-                }, null);
-            }, this._queueCommand);
-        });
+                        return false;
+                    }, null);
+                }, this._queueCommand);
+            });
+        } catch (e) {
+            print("Error in _handleTask: " + e.message);
+            spinner.stop();
+            button.set_sensitive(true);
+        }
     },
 
     _renderPlugins: function() {
+        this._css_provider = new Gtk.CssProvider();
+        this._css_provider.load_from_string(`
+            .even-row {
+                background-color: rgba(173, 216, 230, 0.5);
+            }
+            .odd-row {
+                background-color: rgba(255, 255, 255, 0.02);
+            }
+        `);
+        Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), this._css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
+
         let stack = new Gtk.Stack({ transition_type: Gtk.StackTransitionType.CROSSFADE });
 
         stack.set_vexpand(true);
 
         this._panes = {};
 
-        let categories = Object.keys(this._plugins).sort();
+        let categoryOrder = ["Apps", "Games", "Development Tools", "Tweaks", "Utilities"];
+
+        let categories = Object.keys(this._plugins).sort((a, b) => {
+            let indexA = categoryOrder.indexOf(a);
+            let indexB = categoryOrder.indexOf(b);
+            if (indexA === -1) indexA = categoryOrder.length;
+            if (indexB === -1) indexB = categoryOrder.length;
+            return indexA - indexB;
+        });
 
         let switcher;
 
@@ -434,11 +474,12 @@ const Application = new Lang.Class({
             switcher = categories[0];
         } else {
             switcher = new Gtk.StackSwitcher({ stack: stack });
+            switcher.get_style_context().add_class('header-switcher');
         }
 
         let sort = (row1, row2) => {
-            let label1 = row1.get_children()[0].get_children()[4].get_label(),
-                label2 = row2.get_children()[0].get_children()[4].get_label();
+            let label1 = row1.get_child().get_child_at(1, 1).get_label(),
+                label2 = row2.get_child().get_child_at(1, 1).get_label();
 
             if (label1 > label2) {
                 return 1;
@@ -473,18 +514,26 @@ const Application = new Lang.Class({
             let list = new Gtk.ListBox({ selection_mode: Gtk.SelectionMode.NONE });
 
             list.get_style_context().add_class("view");
+            list.row_spacing = 15;
 
-            list.set_sort_func(sort);
+            let sortedItems = Object.keys(this._plugins[category]).sort();
 
-            for (let item in this._plugins[category]) {
+            let pluginIndex = 0;
+
+            for (let item of sortedItems) {
                 let plugin = this._plugins[category][item];
                 print('fedy: loading plugin ' + plugin.category + '::' + plugin.label);
 
                 let grid = new Gtk.Grid({
                     row_spacing: 5,
                     column_spacing: 10,
-                    margin: 5
+                    margin_start: 10,
+                    margin_end: 10,
+                    margin_top: 10,
+                    margin_bottom: 10
                 });
+
+                grid.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
 
                 let image = new Gtk.Image();
 
@@ -493,42 +542,30 @@ const Application = new Lang.Class({
                 let icon;
 
                 if (plugin.icon) {
-                    try {
-                        icon = Gtk.IconTheme.get_default().load_icon(plugin.icon, 48, 0);
+                    let formats = [ "", ".svg", ".png" ];
 
-                        if (icon.width > 48) {
-                            icon = icon.scale_simple(48, 48, GdkPixbuf.InterpType.NEAREST);
+                    for (let ext of formats) {
+                        let path = plugin.path + "/" + plugin.icon + ext;
+
+                        if (Gio.File.new_for_path(path).query_exists(null)) {
+                            image.set_from_file(path);
+                            break;
                         }
+                    }
 
-                        image.set_from_pixbuf(icon);
-                    } catch (e) {
-                        let formats = [ "", ".svg", ".png" ];
-
-                        for (let ext of formats) {
-                            let path = plugin.path + "/" + plugin.icon + ext;
-
-                            if (Gio.File.new_for_path(path).query_exists(null)) {
-                                icon = path;
-
-                                break;
-                            }
-                        }
-
-                        if (icon) {
-                            image.set_from_file(icon);
-                        }
+                    if (!image.get_paintable()) {
+                        image.set_from_icon_name(plugin.icon);
                     }
                 }
 
-                if (!icon) {
-                    image.set_from_icon_name("system-run", Gtk.IconSize.DIALOG);
+                if (!image.get_paintable()) {
+                    image.set_from_icon_name("system-run");
                 }
 
                 grid.attach(image, 0, 1, 1, 2);
 
                 let label = new Gtk.Label({
-                    halign: Gtk.Align.START,
-                    expand: false
+                    halign: Gtk.Align.START
                 });
 
                 label.set_markup("<b>" + plugin.label + "</b>");
@@ -536,8 +573,7 @@ const Application = new Lang.Class({
                 grid.attach(label, 1, 1, 1, 1);
 
                 let license = new Gtk.Label({
-                    halign: Gtk.Align.START,
-                    expand: true
+                    halign: Gtk.Align.START
                 });
 
                 if (plugin.license !== null) {
@@ -549,8 +585,7 @@ const Application = new Lang.Class({
 
                 let description = new Gtk.Label({
                     label: plugin.description,
-                    halign: Gtk.Align.START,
-                    expand: true
+                    halign: Gtk.Align.START
                 });
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
@@ -562,13 +597,14 @@ const Application = new Lang.Class({
 
                 if (plugin.scripts) {
                     if (plugin.scripts.exec) {
-                        let spinner = new Gtk.Spinner({ active: false });
+                        let spinner = new Gtk.Spinner();
 
                         grid.attach(spinner, 2, 1, 1, 2);
 
                         let box = new Gtk.Box({
                             orientation: Gtk.Orientation.VERTICAL,
-                            halign: Gtk.Align.END
+                            halign: Gtk.Align.END,
+                            hexpand: true
                         });
 
                         let button = new Gtk.Button({
@@ -578,9 +614,9 @@ const Application = new Lang.Class({
 
                         this._setButtonState(button, plugin);
 
-                        button.connect("clicked", Lang.bind(this, this._handleTask, spinner, plugin));
+                        button.connect("clicked", () => this._handleTask(button, spinner, plugin));
 
-                        box.set_center_widget(button);
+                        box.append(button);
 
                         grid.attach(box, 3, 1, 1, 2);
                     }
@@ -590,10 +626,37 @@ const Application = new Lang.Class({
                     }
                 }
 
-                list.add(grid);
+                if (plugin.flatpak) {
+                    let spinner = new Gtk.Spinner();
+
+                    grid.attach(spinner, 2, 1, 1, 2);
+
+                    let box = new Gtk.Box({
+                        orientation: Gtk.Orientation.VERTICAL,
+                        halign: Gtk.Align.END,
+                        hexpand: true
+                    });
+
+                    let button = new Gtk.Button({
+                        label: "Checking...",
+                        sensitive: false
+                    });
+
+                    this._setFlatpakButtonState(button, plugin, spinner);
+
+                    button.connect("clicked", () => this._handleFlatpakTask(button, spinner, plugin));
+
+                    box.append(button);
+
+                    grid.attach(box, 3, 1, 1, 2);
+                }
+
+                list.append(grid);
+
+                pluginIndex++;
             }
 
-            this._panes[category].add(list);
+            this._panes[category].set_child(list);
 
             stack.add_titled(this._panes[category], category, category);
         }
@@ -622,34 +685,102 @@ const Application = new Lang.Class({
 
         let searchbar = new Gtk.SearchBar();
 
-        searchbar.add(searchentry);
+        searchbar.set_child(searchentry);
         searchbar.connect_entry(searchentry);
 
         let searchicon = new Gtk.Image();
 
-        searchicon.set_from_icon_name("edit-find-symbolic", Gtk.IconSize.BUTTON);
+        searchicon.set_from_icon_name("edit-find-symbolic");
 
-        let searchbutton = new Gtk.ToggleButton({
-            image: searchicon,
-            always_show_image: true
-        });
+        let searchbutton = new Gtk.ToggleButton();
+
+        searchbutton.set_child(searchicon);
+        searchbutton.get_style_context().add_class('header-button');
 
         searchbutton.connect("toggled", b => searchbar.set_search_mode(b.get_active()));
 
+        let gearicon = new Gtk.Image();
+        gearicon.set_from_icon_name("preferences-system-symbolic");
+
+        let gearbutton = new Gtk.Button();
+        gearbutton.set_child(gearicon);
+        gearbutton.get_style_context().add_class('header-button');
+        gearbutton.connect("clicked", () => this._showOptionsDialog());
+
+        this._headerbar.pack_end(gearbutton);
         this._headerbar.pack_end(searchbutton);
 
         if (typeof switcher === "string") {
             this._headerbar.set_title(switcher);
         } else {
-            this._headerbar.set_custom_title(switcher);
+            this._headerbar.set_title_widget(switcher);
         }
 
         let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
 
-        vbox.add(searchbar);
-        vbox.add(stack);
+        vbox.append(searchbar);
+        vbox.append(stack);
 
-        this._window.add(vbox);
+        this._window.set_child(vbox);
+    },
+
+    _showOptionsDialog: function() {
+        let dialog = new Gtk.Dialog({
+            title: "Options",
+            modal: true,
+            transient_for: this._window
+        });
+
+        dialog.add_button("Close", Gtk.ResponseType.CLOSE);
+
+        let content = dialog.get_content_area();
+        content.set_margin_start(20);
+        content.set_margin_end(20);
+        content.set_margin_top(20);
+        content.set_margin_bottom(20);
+
+        let label = new Gtk.Label({ label: "No options available." });
+        content.append(label);
+
+        dialog.connect("response", () => dialog.destroy());
+        dialog.show();
+    },
+
+    _setFlatpakButtonState: function(button, plugin, spinner) {
+        let app_id = plugin.flatpak.app_id;
+        this._executeCommand(null, "flatpak list --app --columns=application | grep -q " + app_id, (pid, status) => {
+            button.label = status === 0 ? "Uninstall" : "Install";
+            button.sensitive = true;
+            spinner.stop();
+        }, null);
+    },
+
+    _handleFlatpakTask: function(button, spinner, plugin) {
+        spinner.start();
+        button.sensitive = false;
+        let app_id = plugin.flatpak.app_id;
+        let command = button.label === "Install" ? "flatpak install --user -y " + app_id : "flatpak uninstall --user -y " + app_id;
+        this._executeCommand(null, command, (pid, status) => {
+            spinner.stop();
+            if (status === 0) {
+                button.label = button.label === "Install" ? "Uninstall" : "Install";
+                // Show success notification
+                try {
+                    const notification = new Notify.Notification({
+                        summary: "Task completed!",
+                        body: plugin.label + " (" + (button.label === "Uninstall" ? "installed" : "uninstalled") + ") successfully.",
+                        icon_name: "fedy"
+                    });
+                    notification.set_timeout(1000);
+                    notification.show();
+                } catch (e) {
+                    print("Failed to show notification: " + e.message);
+                }
+            } else {
+                this._showDialog({type: "error", text: "Failed to " + (button.label === "Install" ? "install" : "uninstall") + " " + app_id});
+            }
+            button.sensitive = true;
+        }, null);
     },
 
     _loadPluginsFromDir: function(plugindir) {
@@ -712,7 +843,7 @@ const Application = new Lang.Class({
         let user = this._loadJSON(GLib.get_user_data_dir() + "/fedy/config.json");
 
         this._extendObject(this._config, system, user);
-    }
+    },
 });
 
 let app = new Application();

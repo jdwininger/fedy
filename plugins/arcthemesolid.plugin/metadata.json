@@ -2,7 +2,7 @@
 	"label": "Arc Theme",
 	"description": "A non-transparent version of the Arc theme.",
 	"license": "GPLv3",
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

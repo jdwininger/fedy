@@ -2,7 +2,7 @@
 	"label": "Arc Theme",
 	"description": "A flat theme with transparent elements.",
 	"license": "GPLv3",
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

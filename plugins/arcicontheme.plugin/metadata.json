@@ -2,7 +2,7 @@
 	"label": "Arc Icon Theme",
 	"description": "A flat icon theme.",
 	"license": "GPLv3",
-	"category": "Themes",
+	"category": "Games",
 	"scripts": {
 		"exec": {
 			"label": "Install",

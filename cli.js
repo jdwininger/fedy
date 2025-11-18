@@ -14,7 +14,7 @@ const
         ADD: new Option("add", GLib.OptionArg.STRING_ARRAY, "Add a plugin", "<plugin>", true),
         REMOVE: new Option("remove", GLib.OptionArg.STRING_ARRAY, "Remove a plugin", "<plugin>", true),
         FORCE: new Option("force", GLib.OptionArg.NONE, "Force plugins action", null, false)
-    },
+    }
     FedyOptions = [
         FedyOption.LIST,
         FedyOption.ONELINE,
@@ -25,40 +25,36 @@ const
     ];
 
 
-var PluginAction = new Lang.Class({
-    Name: "PluginAction",
-
-    _init(option, plugin, forced) {
+var PluginAction = class {
+    constructor(option, plugin, forced) {
         this.option = option;
         this.plugin = plugin;
         this.forced = forced;
-    },
+    }
 
     actionLabel() {
         return this.option.name.charAt(0).toUpperCase() + this.option.name.substr(1);
-    },
+    }
 
     pluginLabel() {
         return (this.isPluginUnknown()) ? this.plugin.name : this.plugin.label;
-    },
+    }
 
     isCommand() {
         return !this.isPluginUnknown() && !this.isStatus();
-    },
+    }
 
     isPluginUnknown() {
         return typeof this.plugin.label === "undefined";
-    },
+    }
 
     isStatus() {
         return FedyOption.STATUS.match(this.option.name);
     }
-});
+}
 
-var FedyCli = new Lang.Class({
-    Name: "FedyCli",
-
-    _init(fedy) {
+var FedyCli = class {
+    constructor(fedy) {
         FedyOptions.forEach(option => option.registerIn(fedy.application));
 
         this.fedy = fedy;
@@ -72,8 +68,8 @@ var FedyCli = new Lang.Class({
             );
         }
 
-        this.fedy.application.connect("handle_local_options", Lang.bind(this, this._onOptions));
-    },
+        fedy.application.connect("handle_local_options", this._onOptions.bind(this));
+    }
 
     _onOptions(application, options) {
         if (!this._isCliOptions(options)) {
@@ -95,11 +91,11 @@ var FedyCli = new Lang.Class({
         loop.run();
 
         return 0;
-    },
+    }
 
     _isCliOptions(options) {
         return FedyOptions.some(option => option.in(options));
-    },
+    }
 
     _promiseOfCategoryReports(options) {
         const oneline = FedyOption.ONELINE.in(options);
@@ -116,7 +112,7 @@ var FedyCli = new Lang.Class({
                     .all(promiseOfPluginsWithStatuses)
                     .then(pluginsWithStatuses => this._buildCategoryReport(category, pluginsWithStatuses, oneline));
             });
-    },
+    }
 
     _buildCategoryReport(category, pluginsWithStatuses, oneline) {
         let report = `Category: ${category}\n`;
@@ -125,22 +121,22 @@ var FedyCli = new Lang.Class({
         });
         report += "\n";
         return report;
-    },
+    }
 
     _buildPluginReport(plugin, pluginStatus, oneline) {
         const statusCharacter = pluginStatus.isPluginEnable() ? "✓" : "✗",
             onelineReport = `${statusCharacter} [${plugin.name}] ${plugin.label}\n`,
             license = (typeof plugin.license !== "undefined") ? `  (${plugin.license})\n` : "";
         return (oneline) ? onelineReport : `${onelineReport}  ${plugin.description}\n${license}`;
-    },
+    }
 
-    _promiseOfActionReports: function (options) {
+    _promiseOfActionReports(options) {
         const forced = FedyOption.FORCE.in(options);
         return FedyOptions
             .filter(option => option.in(options) && option.isAction)
             .flatMap(option => this._pluginActions(options, option, forced))
             .map(pluginActions => this._promiseOfActionReport(pluginActions));
-    },
+    }
 
     _pluginActions(options, option, forced) {
         return option
@@ -149,22 +145,17 @@ var FedyCli = new Lang.Class({
                 let plugin = this.pluginRepository.getByName(pluginName);
                 return new PluginAction(option, plugin, forced);
             });
-    },
+    }
 
-    _promiseOfActionReport(pluginAction) {
-        return this.pluginRepository
-            .promiseOfPluginStatus(pluginAction.plugin)
-            .then(pluginStatus => {
-                if (!this._isCommandRequired(pluginAction, pluginStatus)) {
-                    return this._buildReport(pluginAction, pluginStatus, 0);
-                }
+    async _promiseOfActionReport(pluginAction) {
+        const pluginStatus = await this.pluginRepository.promiseOfPluginStatus(pluginAction.plugin);
+        if (!this._isCommandRequired(pluginAction, pluginStatus)) {
+            return this._buildReport(pluginAction, pluginStatus, 0);
+        }
 
-                return this.pluginRepository
-                    .promiseOfCommandStatus(pluginAction.plugin.path, pluginStatus.action.command)
-                    .then(commandStatusCode => this._buildReport(pluginAction, pluginStatus, commandStatusCode));
-            })
-            .catch(e => logError(e));
-    },
+        const commandStatusCode = await this.pluginRepository.promiseOfCommandStatus(pluginAction.plugin.path, pluginStatus.action.command);
+        return this._buildReport(pluginAction, pluginStatus, commandStatusCode);
+    }
 
     _buildReport(pluginAction, pluginStatus, commandStatusCode) {
         const actionLabel = pluginAction.actionLabel(),
@@ -188,12 +179,12 @@ var FedyCli = new Lang.Class({
         }
 
         return report;
-    },
+    }
 
     _isCommandRequired(pluginAction, pluginStatus) {
         const isAlreadyApplied = this._isAlreadyApplied(pluginAction, pluginStatus);
         return !isAlreadyApplied && pluginAction.isCommand() && (!pluginStatus.isMalicious || pluginAction.forced);
-    },
+    }
 
     _isAlreadyApplied(pluginAction, pluginStatus) {
         switch (pluginAction.option.name) {
@@ -204,7 +195,7 @@ var FedyCli = new Lang.Class({
         default:
             return false;
         }
-    },
+    }
 
     _printReports(reports) {
         print();
@@ -213,8 +204,7 @@ var FedyCli = new Lang.Class({
             print(report);
         });
     }
-
-});
+}
 
 const concat = (x, y) => x.concat(y),
     flatMap = (f, xs) => xs.map(f).reduce(concat, []);

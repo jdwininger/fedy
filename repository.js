@@ -1,25 +1,21 @@
 const Lang = imports.lang;
 
-var PluginStatus = new Lang.Class({
-    Name: "PluginStatus",
-
-    _init(code, action, isMalicious, maliciousPart, maliciousDescription) {
+var PluginStatus = class {
+    constructor(code, action, isMalicious, maliciousPart, maliciousDescription) {
         this.code = code;
         this.action = action;
         this.isMalicious = isMalicious;
         this.maliciousPart = maliciousPart;
         this.maliciousDescription = maliciousDescription;
-    },
+    }
 
     isPluginEnable() {
         return this.code === 0;
     }
-});
+}
 
-var Plugin = new Lang.Class({
-    Name: "Plugin",
-
-    _init(name, plugin) {
+var Plugin = class {
+    constructor(name, plugin) {
         this.name = name;
         this.label = plugin.label;
         this.description = plugin.description;
@@ -35,12 +31,10 @@ var Plugin = new Lang.Class({
             };
         }
     }
-});
+}
 
-var PluginRepository = new Lang.Class({
-    Name: "PluginRepository",
-
-    _init(fedy) {
+var PluginRepository = class {
+    constructor(fedy) {
         this.fedy = fedy;
         this.fedy._loadConfig();
         this.fedy._loadPlugins();
@@ -52,19 +46,19 @@ var PluginRepository = new Lang.Class({
                 this.plugins = Object.assign({}, this.plugins, this.fedy._plugins[category]);
             }
         }
-    },
+    }
 
     listCategories() {
         return Object.keys(this.fedy._plugins).sort();
-    },
+    }
 
     listByCategory(category) {
         return Object.values(this.fedy._plugins[category]);
-    },
+    }
 
     getByName(pluginName) {
         return this.plugins.hasOwnProperty(pluginName) ? this.plugins[pluginName] : {name: pluginName};
-    },
+    }
 
     promiseOfPluginStatus(plugin) {
         return new Promise((resolve) => {
@@ -78,7 +72,7 @@ var PluginRepository = new Lang.Class({
                 resolve(pluginStatus);
             });
         });
-    },
+    }
 
     promiseOfCommandStatus(path, command) {
         return new Promise((resolve) => {
@@ -86,7 +80,7 @@ var PluginRepository = new Lang.Class({
                 resolve(commandStatusCode);
             });
         });
-    },
+    }
 
     _toPlugin(plugins) {
         Object.keys(plugins)
@@ -94,5 +88,5 @@ var PluginRepository = new Lang.Class({
                 plugins[pluginName] = new Plugin(pluginName, plugins[pluginName]);
             });
     }
-});
+}
 

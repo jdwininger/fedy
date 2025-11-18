@@ -4,6 +4,9 @@
 	"description": "A fast, stable browser following a rapid 6-week release cycle.",
 	"license": "MPL2",
 	"category": "Apps",
+	"flatpak": {
+		"app_id": "org.mozilla.FirefoxDeveloperEdition"
+	},
 	"scripts": {
 		"exec": {
 			"label": "Install",
