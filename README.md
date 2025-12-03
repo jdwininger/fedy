@@ -135,7 +135,15 @@ These plugins integrate with Flatpak for sandboxed application installation. No 
 Fedy automatically:
 - Checks if the Flatpak app is installed
 - Shows "Install" or "Uninstall" button accordingly
-- Handles installation/uninstallation with `flatpak install --user` / `flatpak uninstall --user`
+  - Handles installation/uninstallation with `flatpak install --user` / `flatpak uninstall --user`
+
+Per-plugin flatpak scripts
+
+If a plugin requires extra control over the Flatpak install/uninstall process (for example system-wide installs or specific remotes), you can include `install.sh` / `uninstall.sh` inside the plugin directory. These scripts should check for `flatpak` presence and ensure the required remote exists.
+
+We provide example templates in `plugin-templates/flatpak-install.sh` and `plugin-templates/flatpak-uninstall.sh` which plugin authors can copy into their plugin folders and customize.
+
+If a plugin includes a `flatpak.remote` field in `metadata.json` it will be used as the default remote for user installs.
 
 #### 3. Custom Scripts
 

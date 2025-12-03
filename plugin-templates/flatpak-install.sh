@@ -5,7 +5,7 @@ set -euo pipefail
 # Usage: place in your-plugin.plugin/install.sh
 # Sets APP_ID and REMOTE (default flathub). Per-user install.
 
-APP_ID="app.xemu.xemu"
+APP_ID="org.example.App"
 REMOTE="${REMOTE:-flathub}"
 
 # Ensure flatpak exists

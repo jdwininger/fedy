@@ -174,10 +174,15 @@ const Application = new Lang.Class({
             dialog.destroy();
         });
 
-        dialog.show_all();
+        // GTK4 doesn't expose show_all(), use show() instead
+        if (typeof dialog.show === 'function') {
+            dialog.show();
+        } else if (typeof dialog.set_visible === 'function') {
+            dialog.set_visible(true);
+        }
     },
 
-    _executeCommand: function(workingdir, command, callback = () => {}) {
+    _executeCommand: function(workingdir, command, callback = () => {}, spawnFlags = GLib.SpawnFlags.SEARCH_PATH_FROM_ENVP | GLib.SpawnFlags.DO_NOT_REAP_CHILD) {
         let [ status, argvp ] = GLib.shell_parse_argv(command);
 
         if (status === false) {
@@ -197,7 +202,7 @@ const Application = new Lang.Class({
 
         try {
             [ ok, pid ] = GLib.spawn_async(workingdir, argvp, envp,
-                                       GLib.SpawnFlags.SEARCH_PATH_FROM_ENVP | GLib.SpawnFlags.DO_NOT_REAP_CHILD, null);
+                                       spawnFlags, null);
         } catch (e) {
             print("Failed to run process: " + e.message);
 
@@ -447,6 +452,32 @@ const Application = new Lang.Class({
             .odd-row {
                 background-color: rgba(255, 255, 255, 0.02);
             }
+
+            /* Target buttons inside plugin list views to ensure a consistent
+             * color scheme for Install/Uninstall actions across themes. We
+             * still prefer theme classes but provide explicit coloring here
+             * so the buttons match other action buttons visually. */
+            .view button.suggested-action {
+                background-image: none;
+                background-color: #007AFF;
+                color: #ffffff;
+            }
+            .view button.suggested-action:hover {
+                background-color: #0062d6;
+            }
+
+            .view button.destructive-action {
+                background-image: none;
+                background-color: #D64545;
+                color: #ffffff;
+            }
+            .view button.destructive-action:hover {
+                background-color: #b53232;
+            }
+
+            /* Flatpak buttons now use theme-provided action classes
+               (suggested-action/destructive-action) so their colors match
+               the rest of the UI and respect the current GTK theme. */
         `);
         Gtk.StyleContext.add_provider_for_display(Gdk.Display.get_default(), this._css_provider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION);
 
@@ -748,22 +779,53 @@ const Application = new Lang.Class({
 
     _setFlatpakButtonState: function(button, plugin, spinner) {
         let app_id = plugin.flatpak.app_id;
-        this._executeCommand(null, "flatpak list --app --columns=application | grep -q " + app_id, (pid, status) => {
+        // Use flatpak info which returns non-zero when not installed — avoid shell pipes
+        // Hide stdout/stderr so terminal control sequences from flatpak do not leak to the console
+        const hideOutputFlags = GLib.SpawnFlags.SEARCH_PATH_FROM_ENVP | GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.STDOUT_TO_DEV_NULL | GLib.SpawnFlags.STDERR_TO_DEV_NULL;
+        this._executeCommand(null, "flatpak info --user " + app_id, (pid, status) => {
+            // status 0 means installed for the user
             button.label = status === 0 ? "Uninstall" : "Install";
+            // Apply flatpak button style classes
+            try {
+                button.get_style_context().remove_class('suggested-action');
+                button.get_style_context().remove_class('destructive-action');
+                if (button.label === 'Install') {
+                    button.get_style_context().add_class('suggested-action');
+                } else {
+                    button.get_style_context().add_class('destructive-action');
+                }
+            } catch (e) {
+                // ignore if style_context not available
+            }
             button.sensitive = true;
             spinner.stop();
-        }, null);
+        }, hideOutputFlags);
     },
 
     _handleFlatpakTask: function(button, spinner, plugin) {
         spinner.start();
         button.sensitive = false;
         let app_id = plugin.flatpak.app_id;
-        let command = button.label === "Install" ? "flatpak install --user -y " + app_id : "flatpak uninstall --user -y " + app_id;
+        // Default to installing from flathub when no remote specified
+        let installCmd = "flatpak install --user -y flathub " + app_id;
+        let uninstallCmd = "flatpak uninstall --user -y " + app_id;
+        let command = button.label === "Install" ? installCmd : uninstallCmd;
+        // Hide flatpak output (progress escapes) so the terminal or app console isn't littered
+        const hideOutputFlags = GLib.SpawnFlags.SEARCH_PATH_FROM_ENVP | GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.STDOUT_TO_DEV_NULL | GLib.SpawnFlags.STDERR_TO_DEV_NULL;
         this._executeCommand(null, command, (pid, status) => {
             spinner.stop();
-            if (status === 0) {
+                if (status === 0) {
+                // Toggle label and classes
                 button.label = button.label === "Install" ? "Uninstall" : "Install";
+                try {
+                    button.get_style_context().remove_class('suggested-action');
+                    button.get_style_context().remove_class('destructive-action');
+                    if (button.label === 'Install') {
+                        button.get_style_context().add_class('suggested-action');
+                    } else {
+                        button.get_style_context().add_class('destructive-action');
+                    }
+                } catch (e) {}
                 // Show success notification
                 try {
                     const notification = new Notify.Notification({
@@ -777,10 +839,63 @@ const Application = new Lang.Class({
                     print("Failed to show notification: " + e.message);
                 }
             } else {
-                this._showDialog({type: "error", text: "Failed to " + (button.label === "Install" ? "install" : "uninstall") + " " + app_id});
+                // Try adding flathub remote and retry installation if install failed
+                if (button.label === "Install") {
+                    // add the remote for the current user (we default to user installs)
+                    this._executeCommand(null, "flatpak remote-add --if-not-exists --user flathub https://flathub.org/repo/flathub.flatpakrepo", (pid2, status2) => {
+                        // Try install again once
+                        this._executeCommand(null, installCmd, (pid3, status3) => {
+                            if (status3 === 0) {
+                                button.label = "Uninstall";
+                                try {
+                                    const notification = new Notify.Notification({
+                                        summary: "Task completed!",
+                                        body: plugin.label + " (installed) successfully.",
+                                        icon_name: "fedy"
+                                    });
+                                    notification.set_timeout(1000);
+                                    notification.show();
+                                } catch (e) {
+                                    print("Failed to show notification: " + e.message);
+                                }
+                            } else {
+                                // Capture stderr for helpful diagnostics
+                                try {
+                                    let [ok, out, err, exit] = GLib.spawn_command_line_sync(installCmd);
+                                    let reason = (err && err.length) ? (typeof err === 'string' ? err : ByteArray.toString(err)) : 'Unknown error';
+
+                                    if (/No remote refs found/.test(reason)) {
+                                        this._showDialog({ type: 'error', text: 'Install failed: the app id is not available from the remote (no remote refs found). ' + GLib.markup_escape_text(reason, -1) });
+                                    } else if (/network|failed to download|Connection timed out|Could not resolve host/i.test(reason)) {
+                                        this._showDialog({ type: 'error', text: 'Install failed due to network/remote access issues. ' + GLib.markup_escape_text(reason, -1) });
+                                    } else {
+                                        this._showDialog({ type: 'error', text: 'Install failed: ' + GLib.markup_escape_text(reason, -1) });
+                                    }
+                                } catch (e) {
+                                    this._showDialog({ type: 'error', text: 'Install failed (no further diagnostics available).' });
+                                }
+                                }
+                                // Ensure button is re-enabled for the user after retry attempt
+                                button.sensitive = true;
+                        }, hideOutputFlags);
+                    }, hideOutputFlags);
+                } else {
+                    // Uninstall failed — capture stderr for diagnostics
+                    try {
+                        let [ok, out, err, exit] = GLib.spawn_command_line_sync(uninstallCmd);
+                        let reason = (err && err.length) ? (typeof err === 'string' ? err : ByteArray.toString(err)) : 'Unknown error';
+                        if (/not installed/i.test(reason)) {
+                            this._showDialog({ type: 'info', text: 'Uninstall: the app does not appear to be installed. ' + GLib.markup_escape_text(reason, -1) });
+                        } else {
+                            this._showDialog({ type: 'error', text: 'Uninstall failed: ' + GLib.markup_escape_text(reason, -1) });
+                        }
+                    } catch (e) {
+                        this._showDialog({ type: 'error', text: 'Uninstall failed (no further diagnostics available).' });
+                    }
+                }
             }
             button.sensitive = true;
-        }, null);
+        }, hideOutputFlags);
     },
 
     _loadPluginsFromDir: function(plugindir) {

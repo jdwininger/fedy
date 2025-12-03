@@ -4,7 +4,7 @@ set -euo pipefail
 # Template: flatpak uninstall script for plugins
 # Usage: place in your-plugin.plugin/uninstall.sh
 
-APP_ID="app.xemu.xemu"
+APP_ID="org.example.App"
 
 # Ensure flatpak exists
 if ! command -v flatpak >/dev/null 2>&1; then

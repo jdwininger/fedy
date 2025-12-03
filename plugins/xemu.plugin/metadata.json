@@ -4,7 +4,8 @@
 	"description": "An emulator for the original Microsoft Xbox.",
 	"license": "GNU General Public License, version 2",
 	"category": "Games",
-  	"flatpak": {
-    "app_id": "app.xemu.xemu"
-  }
+	"flatpak": {
+		"app_id": "app.xemu.xemu",
+		"remote": "flathub"
+	}
 }
