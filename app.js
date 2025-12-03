@@ -1,6 +1,13 @@
 #!/usr/bin/gjs
 
 imports.searchPath.unshift('.');
+// Pick explicit GI versions to avoid warnings when multiple versions are present.
+if (!imports.gi.versions) imports.gi.versions = {};
+// Use GTK4 / GDK4 and the traditional gdk-pixbuf 2.0 bindings
+imports.gi.versions.Gtk = '4.0';
+imports.gi.versions.Gdk = '4.0';
+imports.gi.versions.GdkPixbuf = '2.0';
+
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
@@ -39,7 +46,41 @@ const Application = new Lang.Class({
             });
 
         try {
-            this._window.set_icon_name("fedy");
+            // Prefer bundled icon files (SVG then PNG) and fall back to theme name "fedy".
+            let cwd = GLib.get_current_dir();
+            let svgPath = cwd + "/fedy.svg";
+            let pngPath = cwd + "/fedy.png";
+
+            function _usePixmapPath(path) {
+                try {
+                    // Try to load into a Pixbuf and set it as the window icon if supported.
+                    let pix = GdkPixbuf.Pixbuf.new_from_file(path);
+
+                    if (typeof this._window.set_icon === 'function') {
+                        this._window.set_icon(pix);
+                        return true;
+                    } else if (typeof this._window.set_icon_from_file === 'function') {
+                        this._window.set_icon_from_file(path);
+                        return true;
+                    }
+
+                    return false;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            if (Gio.File.new_for_path(svgPath).query_exists(null)) {
+                if (!_usePixmapPath.call(this, svgPath)) {
+                    this._window.set_icon_name("fedy");
+                }
+            } else if (Gio.File.new_for_path(pngPath).query_exists(null)) {
+                if (!_usePixmapPath.call(this, pngPath)) {
+                    this._window.set_icon_name("fedy");
+                }
+            } else {
+                this._window.set_icon_name("fedy");
+            }
         } catch (e) {
             print("Failed to load application icon: " + e.message);
         }
@@ -738,13 +779,46 @@ const Application = new Lang.Class({
         gearbutton.get_style_context().add_class('header-button');
         gearbutton.connect("clicked", () => this._showOptionsDialog());
 
-        this._headerbar.pack_end(gearbutton);
-        this._headerbar.pack_end(searchbutton);
+        // GTK4 HeaderBar uses append/prepend rather than pack_end/pack_start
+        if (typeof this._headerbar.append === 'function') {
+            this._headerbar.append(gearbutton);
+            this._headerbar.append(searchbutton);
+        } else if (typeof this._headerbar.pack_end === 'function') {
+            this._headerbar.pack_end(gearbutton);
+            this._headerbar.pack_end(searchbutton);
+        }
 
-        if (typeof switcher === "string") {
-            this._headerbar.set_title(switcher);
-        } else {
-            this._headerbar.set_title_widget(switcher);
+        // GTK4 HeaderBar may not expose set_title / set_title_widget the same way
+        try {
+            if (typeof switcher === "string") {
+                // Create a centered label for the title
+                let titleLabel = new Gtk.Label({ label: switcher });
+
+                    if (typeof this._headerbar.set_title_widget === 'function') {
+                        this._headerbar.set_title_widget(titleLabel);
+                    } else if (typeof this._headerbar.prepend === 'function') {
+                        // prepend puts widget at the start on GTK4
+                        this._headerbar.prepend(titleLabel);
+                    } else if (typeof this._headerbar.pack_start === 'function') {
+                        // fallback for older APIs
+                        this._headerbar.pack_start(titleLabel);
+                    } else if (typeof this._headerbar.append === 'function') {
+                        this._headerbar.append(titleLabel);
+                    }
+            } else {
+                // switcher is a widget (Gtk.StackSwitcher)
+                if (typeof this._headerbar.set_title_widget === 'function') {
+                    this._headerbar.set_title_widget(switcher);
+                } else if (typeof this._headerbar.prepend === 'function') {
+                    this._headerbar.prepend(switcher);
+                } else if (typeof this._headerbar.pack_start === 'function') {
+                    this._headerbar.pack_start(switcher);
+                } else if (typeof this._headerbar.append === 'function') {
+                    this._headerbar.append(switcher);
+                }
+            }
+        } catch (e) {
+            // Non-fatal; continue without a title widget if API differs
         }
 
         let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL });
