@@ -1,0 +1,11 @@
+{
+	"icon": "ymir",
+	"label": "Ymir",
+	"description": "Ymir is a work-in-progress Sega Saturn emulator.",
+	"license": "GNU General Public License v3.0 only",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "io.github.strikerx3.ymir",
+		"remote": "flathub"
+	}
+}

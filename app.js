@@ -356,6 +356,25 @@ const Application = new Lang.Class({
     _runPluginCommand: function(plugin, cmd, cb = () => {}, runner = () => {}) {
         let [ malicious, command, description ] = this._scanMaliciousCommand(plugin, cmd);
 
+        // Prepare extra CLI args derived from metadata, if present
+        let extraArgs = '';
+
+        try {
+            if (plugin.packages && Array.isArray(plugin.packages) && plugin.packages.length) {
+                // join with commas and quote
+                let pkgs = plugin.packages.join(',');
+                // escape any double quotes inside (shouldn't normally be present)
+                pkgs = pkgs.replace(/"/g, '\\"');
+                extraArgs += ' --packages "' + pkgs + '"';
+            }
+
+            if (plugin.requires_nonfree !== undefined) {
+                extraArgs += ' --need-nonfree ' + (plugin.requires_nonfree ? 'true' : 'false');
+            }
+        } catch (e) {
+            // ignore
+        }
+
         if (malicious) {
             this._showDialog({
                 type: "question",
@@ -366,7 +385,17 @@ const Application = new Lang.Class({
             }, (dialog, response) => {
                 switch (response) {
                 case Gtk.ResponseType.YES:
-                    runner.call(this, plugin.path, cmd, cb);
+                    // Wrap cb so we normalize the platform wait-status into a simple
+                    // exit code (child status is often returned as exit_code<<8).
+                    const cb_normalize = (pid, status, ...rest) => {
+                        let exit_code = status;
+                        if (typeof status === 'number') {
+                            exit_code = status >>> 8;
+                        }
+                        cb.apply(this, [pid, exit_code].concat(rest));
+                    };
+
+                    runner.call(this, plugin.path, cmd + (extraArgs ? (' ' + extraArgs.trim()) : ''), cb_normalize);
                     break;
                 default:
                     cb(null, 1);
@@ -377,7 +406,16 @@ const Application = new Lang.Class({
             return;
         }
 
-        runner.call(this, plugin.path, cmd, cb);
+                    // same normalization for the dialog-runner path
+                    const cb_normalize2 = (pid, status, ...rest) => {
+                        let exit_code = status;
+                        if (typeof status === 'number') {
+                            exit_code = status >>> 8;
+                        }
+                        cb.apply(this, [pid, exit_code].concat(rest));
+                    };
+
+                    runner.call(this, plugin.path, cmd + (extraArgs ? (' ' + extraArgs.trim()) : ''), cb_normalize2);
     },
 
     _getPluginStatus: function(plugin, callback) {
@@ -389,8 +427,21 @@ const Application = new Lang.Class({
 
         if (scripts.status && scripts.status.command) {
             this._runPluginCommand(plugin, scripts.status.command, (pid, status) => {
+                
+                // status codes convention for status scripts:
+                // 0 => package installed
+                // 5 => hardware not present / not applicable
                 if (status === 0) {
-                    callback(scripts.undo, status);
+                    // If the plugin asks to disallow uninstalls (drivers), present a disabled
+                    // "Installed" state instead of providing an uninstall action.
+                    if (plugin.no_uninstall) {
+                        callback({ label: 'Installed', command: null }, status);
+                    } else {
+                        callback(scripts.undo, status);
+                    }
+                } else if (status === 5) {
+                    // special-case: report no action available (e.g., hardware missing)
+                    callback(null, status);
                 } else {
                     callback(scripts.exec, status);
                 }
@@ -402,12 +453,28 @@ const Application = new Lang.Class({
 
     _setButtonState: function(button, plugin) {
         this._getPluginStatus(plugin, (action, status) => {
+            if (!action) {
+                // No action available (e.g. hardware missing) - show disabled
+                try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
+                try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
+                button.set_label('Not available');
+                try { button.set_tooltip_text('This plugin is not applicable on this system (hardware not present).'); } catch (e) {}
+                button.set_sensitive(false);
+                return;
+            }
+
             button.set_label(action.label);
 
-            if (status === 0) {
-                button.get_style_context().add_class("destructive-action");
+            if (status === 0 && action.command) {
+                try { button.get_style_context().add_class("destructive-action"); } catch (e) {}
+            } else if (action.command) {
+                try { button.get_style_context().add_class("suggested-action"); } catch (e) {}
             } else {
-                button.get_style_context().add_class("suggested-action");
+                // no command -> neutral state (installed, not removable) — ensure no action classes
+                try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
+                try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
+                // action has no command -> likely an 'Installed' state where removal is not allowed
+                try { button.set_tooltip_text('Installed — removal is disabled for this plugin.'); } catch (e) {}
             }
 
             button.set_sensitive(!!action.command);
@@ -474,7 +541,7 @@ const Application = new Lang.Class({
                         this._setButtonState(button, plugin);
 
                         return false;
-                    }, null);
+                    });
                 }, this._queueCommand);
             });
         } catch (e) {
@@ -586,7 +653,7 @@ const Application = new Lang.Class({
             let list = new Gtk.ListBox({ selection_mode: Gtk.SelectionMode.NONE });
 
             list.get_style_context().add_class("view");
-            list.row_spacing = 15;
+            list.row_spacing = 2;
 
             let sortedItems = Object.keys(this._plugins[category]).sort();
 

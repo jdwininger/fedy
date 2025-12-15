@@ -1,0 +1,11 @@
+{
+	"icon": "melon",
+	"label": "melonDS",
+	"description": "melonDS is a Nintendo DS emulator focused on accuracy and usability.",
+	"license": "GNU General Public License, version 3",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "net.kuribo64.melonDS",
+		"remote": "flathub"
+	}
+}

@@ -1,0 +1,11 @@
+{
+	"icon": "rpcs3",
+	"label": "RPCS3",
+	"description": "RPCS3 is an open-source Sony PlayStation 3 emulator and debugger.",
+	"license": "GNU General Public License v2.0 or later",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "net.rpcs3.RPCS3",
+		"remote": "flathub"
+	}
+}

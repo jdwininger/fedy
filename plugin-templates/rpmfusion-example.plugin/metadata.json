@@ -1,0 +1,20 @@
+{
+  "icon": "folder-download-symbolic",
+  "label": "Example: Install example-package (RPM Fusion)",
+  "description": "Installs example-package from RPM Fusion if RPM Fusion is enabled on the system.",
+  "license": "MIT",
+  "category": "Drivers",
+  "scripts": {
+    "exec": {
+      "label": "Install",
+      "command": "run-as-root -s install.sh"
+    },
+    "undo": {
+      "label": "Remove",
+      "command": "run-as-root -s uninstall.sh"
+    },
+    "status": {
+      "command": "rpm --quiet --query example-package"
+    }
+  }
+}

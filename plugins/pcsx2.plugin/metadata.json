@@ -1,0 +1,11 @@
+{
+	"icon": "pcsx2",
+	"label": "PCSX2",
+	"description": "PCSX2 is a PlayStation 2 emulator for Windows, Linux, and macOS.",
+	"license": "GNU General Public License, version 2",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "net.pcsx2.PCSX2",
+		"remote": "flathub"
+	}
+}

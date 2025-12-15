@@ -1,0 +1,11 @@
+{
+	"icon": "fightcade",
+	"label": "Fightcade",
+	"description": "Fightcade is an online retro gaming platform focused on fighting games.",
+	"license": "Various licenses, not entirely open source",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "com.fightcade.Fightcade",
+		"remote": "flathub"
+	}
+}

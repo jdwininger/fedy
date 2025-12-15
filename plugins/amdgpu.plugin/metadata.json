@@ -1,0 +1,25 @@
+{
+  "icon": "amdgpu",
+  "label": "Install AMD GPU Drivers / Runtime",
+  "description": "Installs AMD GPU userspace drivers and Vulkan support packages.",
+  "license": "Open Source",
+  "category": "Drivers",
+  "no_uninstall": true,
+  "packages": [
+    "xorg-x11-drv-amdgpu",
+    "mesa-dri-drivers",
+    "mesa-vulkan-drivers",
+    "vulkan",
+    "libva-utils",
+    "vdpauinfo"
+  ],
+  "scripts": {
+    "exec": {
+      "label": "Install",
+      "command": "run-as-root -s install.sh"
+    },
+    "status": {
+      "command": "bash status.sh"
+    }
+  }
+}

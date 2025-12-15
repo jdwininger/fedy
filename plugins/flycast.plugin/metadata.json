@@ -1,0 +1,11 @@
+{
+	"icon": "flycast",
+	"label": "Flycast",
+	"description": "Flycast is a Sega Dreamcast emulator.",
+	"license": "GNU General Public License, version 2",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "org.flycast.Flycast",
+		"remote": "flathub"
+	}
+}

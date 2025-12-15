@@ -1,0 +1,11 @@
+{
+	"icon": "dolphin",
+	"label": "Dolphin Emulator",
+	"description": "Dolphin is a GameCube and Wii emulator.",
+	"license": "GNU General Public License, version 2",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "org.DolphinEmu.dolphin-emu",
+		"remote": "flathub"
+	}
+}

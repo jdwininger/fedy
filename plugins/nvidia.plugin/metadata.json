@@ -1,0 +1,28 @@
+{
+  "icon": "nvidia",
+  "label": "Install Nvidia Driver (RPM Fusion)",
+  "description": "Installs Nvidia Drivers from RPM Fusion as long as RPM Fusion is enabled on the system.",
+  "license": "Proprietary",
+  "category": "Drivers",
+  "no_uninstall": true,
+  "requires_nonfree": true,
+  "packages": [
+    "akmod-nvidia",
+    "xorg-x11-drv-nvidia-cuda",
+    "vulkan",
+    "xorg-x11-drv-nvidia-cuda-libs",
+    "xorg-x11-drv-nvidia-libs.i686",
+    "nvidia-vaapi-driver",
+    "libva-utils",
+    "vdpauinfo"
+  ],
+  "scripts": {
+    "exec": {
+      "label": "Install",
+      "command": "run-as-root -s install.sh"
+    },
+    "status": {
+      "command": "bash status.sh"
+    }
+  }
+}

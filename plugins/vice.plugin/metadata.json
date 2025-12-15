@@ -1,0 +1,11 @@
+{
+	"icon": "vice",
+	"label": "VICE",
+	"description": "VICE (Versatile Commodore Emulator) is an emulator application designed to recreate the hardware of Commodore computers in software on modern personal computers and other platforms.",
+	"license": "GNU General Public License, version 2",
+	"category": "Emulators",
+	"flatpak": {
+		"app_id": "net.sf.VICE",
+		"remote": "flathub"
+	}
+}
