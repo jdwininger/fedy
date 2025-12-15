@@ -1,7 +1,7 @@
 {
   "icon": "nvidia",
   "label": "Install Nvidia Driver (RPM Fusion)",
-  "description": "Installs Nvidia Drivers from RPM Fusion as long as RPM Fusion is enabled on the system.",
+  "description": "Installs Nvidia Drivers from RPM Fusion.",
   "license": "Proprietary",
   "category": "Drivers",
   "no_uninstall": true,

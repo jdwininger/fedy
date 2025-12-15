@@ -1,0 +1,13 @@
+{
+	"icon": "vscode",
+	"label": "Visual Studio Code",
+	"description": "Microsoft's Visual Studio Code - a lightweight but powerful source code editor.",
+	"license": "MIT",
+	"category": "Development Tools",
+	"packages": [ "code" ],
+	"scripts": {
+		"exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+		"undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" },
+		"status": { "command": "bash status.sh" }
+	}
+}

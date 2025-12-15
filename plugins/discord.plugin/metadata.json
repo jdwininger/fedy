@@ -1,0 +1,11 @@
+{
+	"icon": "discord",
+	"label": "Discord",
+	"description": "Discord desktop text, voice and video chat application.",
+	"license": "Proprietary",
+	"category": "Applications",
+	"flatpak": {
+		"app_id": "com.discordapp.Discord",
+		"remote": "flathub"
+	}
+}

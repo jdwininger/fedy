@@ -1,0 +1,13 @@
+{
+	"icon": "android",
+	"label": "Android Tools (ADB &amp; Fastboot)",
+	"description": "Command-line Android tools (adb, fastboot) for device communication.",
+	"license": "Apache-2.0",
+	"category": "Development Tools",
+	"packages": [ "android-tools", "android-tools-adb", "android-tools-fastboot" ],
+	"scripts": {
+		"exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+		"undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" },
+		"status": { "command": "bash status.sh" }
+	}
+}

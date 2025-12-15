@@ -458,7 +458,25 @@ const Application = new Lang.Class({
                 try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
                 try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
                 button.set_label('Not available');
-                try { button.set_tooltip_text('This plugin is not applicable on this system (hardware not present).'); } catch (e) {}
+                // If status===5 we may want to show a clearer reason (e.g., a
+                // conflicting package is installed). Attempt to find the other
+                // variant and tailor the tooltip if it is installed.
+                if (status === 5) {
+                    let tip = 'This plugin is not applicable on this system (hardware not present).';
+                    let other = this._findOtherVariantPlugin(plugin);
+                    if (other && other.scripts && other.scripts.status && other.scripts.status.command) {
+                        this._runPluginCommand(other, other.scripts.status.command, (pid2, otherStatus) => {
+                            if (otherStatus === 0) {
+                                tip = `Disabled because ${other.label} is installed.`;
+                            }
+                            try { button.set_tooltip_text(tip); } catch (e) {}
+                        }, this._executeCommand);
+                    } else {
+                        try { button.set_tooltip_text(tip); } catch (e) {}
+                    }
+                } else {
+                    try { button.set_tooltip_text('This plugin is not applicable on this system (hardware not present).'); } catch (e) {}
+                }
                 button.set_sensitive(false);
                 return;
             }
@@ -583,6 +601,11 @@ const Application = new Lang.Class({
                 background-color: #b53232;
             }
 
+            /* License text styling (smaller than plugin title) */
+            .view .plugin-license {
+                font-size: 11px;
+            }
+
             /* Flatpak buttons now use theme-provided action classes
                (suggested-action/destructive-action) so their colors match
                the rest of the UI and respect the current GTK theme. */
@@ -664,12 +687,12 @@ const Application = new Lang.Class({
                 print('fedy: loading plugin ' + plugin.category + '::' + plugin.label);
 
                 let grid = new Gtk.Grid({
-                    row_spacing: 5,
-                    column_spacing: 10,
-                    margin_start: 10,
-                    margin_end: 10,
-                    margin_top: 10,
-                    margin_bottom: 10
+                    row_spacing: 2,
+                    column_spacing: 2,
+                    margin_start: 2,
+                    margin_end: 2,
+                    margin_top: 2,
+                    margin_bottom: 2
                 });
 
                 grid.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
@@ -703,24 +726,29 @@ const Application = new Lang.Class({
 
                 grid.attach(image, 0, 1, 1, 2);
 
-                let label = new Gtk.Label({
-                    halign: Gtk.Align.START
+                // Title area (plugin name + license) — use an HBox to guarantee
+                // exact spacing (10px) and vertical centering relative to the icon
+                let titleBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.HORIZONTAL,
+                    spacing: 10,
+                    halign: Gtk.Align.START,
+                    valign: Gtk.Align.CENTER,
+                    hexpand: true
                 });
 
+                let label = new Gtk.Label({ halign: Gtk.Align.START });
                 label.set_markup("<b>" + plugin.label + "</b>");
+                titleBox.append(label);
 
-                grid.attach(label, 1, 1, 1, 1);
-
-                let license = new Gtk.Label({
-                    halign: Gtk.Align.START
-                });
-
+                let license = new Gtk.Label({ halign: Gtk.Align.START });
                 if (plugin.license !== null) {
                     license.set_text((Array.isArray(plugin.license) ? plugin.license.join(", ") : plugin.license) || "");
                     license.set_opacity(0.7);
+                    try { license.get_style_context().add_class('plugin-license'); } catch (e) {}
                 }
+                titleBox.append(license);
 
-                grid.attach_next_to(license, label, Gtk.PositionType.RIGHT, 1, 1);
+                grid.attach(titleBox, 1, 1, 1, 1);
 
                 let description = new Gtk.Label({
                     label: plugin.description,
@@ -743,6 +771,7 @@ const Application = new Lang.Class({
                         let box = new Gtk.Box({
                             orientation: Gtk.Orientation.VERTICAL,
                             halign: Gtk.Align.END,
+                            valign: Gtk.Align.CENTER,
                             hexpand: true
                         });
 
@@ -773,6 +802,7 @@ const Application = new Lang.Class({
                     let box = new Gtk.Box({
                         orientation: Gtk.Orientation.VERTICAL,
                         halign: Gtk.Align.END,
+                        valign: Gtk.Align.CENTER,
                         hexpand: true
                     });
 
@@ -920,13 +950,90 @@ const Application = new Lang.Class({
 
     _setFlatpakButtonState: function(button, plugin, spinner) {
         let app_id = plugin.flatpak.app_id;
-        // Use flatpak info which returns non-zero when not installed — avoid shell pipes
+        // If the plugin provides a status script, consult it first. This allows
+        // the plugin to block availability (e.g., when the RPM variant is
+        // installed we want to mark the Flatpak option as Not available).
+        if (!plugin._tmp_button && plugin.scripts && plugin.scripts.status && plugin.scripts.status.command) {
+            this._runPluginCommand(plugin, plugin.scripts.status.command, (pid, status) => {
+                if (status === 5) {
+                    // Not applicable / blocked
+                    try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
+                    try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
+                    button.set_label('Not available');
+                    button.set_sensitive(false);
+
+                    // Default tooltip
+                    let tip = 'This plugin is not available because the other distribution variant is installed.';
+
+                    // Try to locate a sibling plugin with the same icon to include its label
+                    let other = this._findOtherVariantPlugin(plugin);
+                    if (other && other.scripts && other.scripts.status && other.scripts.status.command) {
+                        this._runPluginCommand(other, other.scripts.status.command, (pid2, otherStatus) => {
+                            if (otherStatus === 0) {
+                                tip = `Disabled because ${other.label} is installed.`;
+                            }
+                            try { button.set_tooltip_text(tip); } catch (e) {}
+                            spinner.stop();
+                        }, this._executeCommand);
+                    } else {
+                        try { button.set_tooltip_text(tip); } catch (e) {}
+                        spinner.stop();
+                    }
+
+                    return;
+                }
+
+                // Otherwise, fall through to the usual flatpak check below
+                // by invoking the rest of this function. We temporarily stash
+                // the button on the plugin object to avoid duplicating logic.
+                plugin._tmp_button = button;
+                this._setFlatpakButtonState(button, plugin, spinner);
+                delete plugin._tmp_button;
+            }, this._executeCommand);
+
+            return;
+        }
+        // Use flatpak info which returns non-zero when not installed. Check both
+        // per-user and system installs so installed applications show correctly
+        // on startup (avoid relying only on --user which misses system installs).
         // Hide stdout/stderr so terminal control sequences from flatpak do not leak to the console
         const hideOutputFlags = GLib.SpawnFlags.SEARCH_PATH_FROM_ENVP | GLib.SpawnFlags.DO_NOT_REAP_CHILD | GLib.SpawnFlags.STDOUT_TO_DEV_NULL | GLib.SpawnFlags.STDERR_TO_DEV_NULL;
+
+        // First check user install; if not installed for user, check system-wide
         this._executeCommand(null, "flatpak info --user " + app_id, (pid, status) => {
-            // status 0 means installed for the user
-            button.label = status === 0 ? "Uninstall" : "Install";
-            // Apply flatpak button style classes
+            if (status === 0) {
+                // installed for user
+                button.label = "Uninstall";
+            } else {
+                // not installed for user — check system
+                this._executeCommand(null, "flatpak info " + app_id, (pid2, status2) => {
+                    if (status2 === 0) {
+                        // Installed system-wide — we cannot safely uninstall system
+                        // installs from the user context. Mark as installed and
+                        // disable the button with an explanatory tooltip.
+                        button.set_label("Installed (system)");
+                        try {
+                            button.get_style_context().remove_class('suggested-action');
+                            button.get_style_context().remove_class('destructive-action');
+                        } catch (e) {}
+                        try { button.set_tooltip_text('This Flatpak is installed system-wide and cannot be removed here.'); } catch (e) {}
+                        button.set_sensitive(false);
+                    } else {
+                        button.set_label("Install");
+                        try {
+                            button.get_style_context().remove_class('suggested-action');
+                            button.get_style_context().remove_class('destructive-action');
+                            button.get_style_context().add_class('suggested-action');
+                        } catch (e) {}
+                        button.set_sensitive(true);
+                    }
+                    spinner.stop();
+                }, hideOutputFlags);
+
+                return;
+            }
+
+            // installed for user — apply classes and stop
             try {
                 button.get_style_context().remove_class('suggested-action');
                 button.get_style_context().remove_class('destructive-action');
@@ -1037,6 +1144,20 @@ const Application = new Lang.Class({
             }
             button.sensitive = true;
         }, hideOutputFlags);
+    },
+
+    _findOtherVariantPlugin: function(plugin) {
+        // find another plugin that likely represents the same app but a different distribution
+        for (let category of Object.keys(this._plugins)) {
+            for (let key of Object.keys(this._plugins[category])) {
+                let p = this._plugins[category][key];
+                if (p !== plugin && p.icon && plugin.icon && p.icon === plugin.icon) {
+                    return p;
+                }
+            }
+        }
+
+        return null;
     },
 
     _loadPluginsFromDir: function(plugindir) {

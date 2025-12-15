@@ -1,7 +1,7 @@
 {
 	"icon": "retroarch",
 	"label": "RetroArch",
-	"description": "RetroArch enables you to run classic games on a wide range of computers and consoles through its slick graphical interface.",
+	"description": "RetroArch enables you to run classic games on a wide range of game consoles.",
 	"license": "GNU General Public License, version 3",
 	"category": "Emulators",
 	"flatpak": {

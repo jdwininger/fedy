@@ -1,0 +1,11 @@
+{
+	"icon": "pplus",
+	"label": "Proton Plus",
+	"description": "Proton Plus - community builds of Proton with additional compatibility patches and fixes.",
+	"license": "Open Source",
+	"category": "Games",
+	"flatpak": {
+		"app_id": "com.vysp3r.ProtonPlus",
+		"remote": "flathub"
+	}
+}
