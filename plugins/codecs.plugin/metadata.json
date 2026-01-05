@@ -8,12 +8,12 @@
 	"scripts": {
 		"exec": {
 			"label": "Install",
-			"command": "run-as-root dnf -y groupinstall multimedia"
+			"command": "run-as-root dnf -y update @multimedia --setopt='install_weak_deps=False' --exclude=PackageKit-gstreamer-plugins"
 		},
 		"undo": {
 			"label": "Remove",
-			"command": "run-as-root dnf -y remove gstreamer1-libav"
+			"command": "run-as-root dnf -y remove @multimedia"
 		},
-		"status": { "command": "rpm --quiet --query gstreamer1-libav" }
+		"status": { "command": "bash status.sh" }
 	}
 }
