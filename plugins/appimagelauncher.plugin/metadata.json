@@ -1,0 +1,14 @@
+{
+  "slug": "appimagelauncher-lite",
+  "label": "AppImageLauncher (Lite)",
+  "description": "Lightweight AppImage integrator — helps manage AppImages and register them with your desktop.",
+  "license": "GPL-3.0",
+  "icon": "appimagelauncher",
+  "category": "Utilities",
+  "homepage": "https://github.com/TheAssassin/AppImageLauncher",
+  "status": { "command": "bash -lc 'command -v appimagelauncher-lite >/dev/null 2>&1 || ls \"$HOME/Applications/AppImageLauncher\"/appimagelauncher-lite*.AppImage >/dev/null 2>&1'" },
+  "scripts": {
+    "exec": { "label": "Install", "command": "install.sh" },
+    "undo": { "label": "Remove", "command": "uninstall.sh" }
+  }
+}
