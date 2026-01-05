@@ -1,0 +1,13 @@
+{
+	"icon": "turtle",
+	"label": "Turtle WoW",
+	"description": "MMO Game server. Free account required.",
+	"license": "Proprietary",
+	"category": "Games",
+	"scripts": {
+		"exec": { "label": "Install", "command": "bash install.sh" },
+		"undo": { "label": "Remove", "command": "bash uninstall.sh" },
+		"status": { "command": "bash status.sh" },
+		"wine": { "label": "Install Wine", "command": "run-as-root -s ../wine.plugin/install.sh" }
+	}
+}

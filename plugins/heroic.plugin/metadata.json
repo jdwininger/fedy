@@ -1,0 +1,11 @@
+{
+	"icon": "heroic",
+	"label": "Heroic",
+	"description": "Heroic Game Launcher - Play games from Epic and other stores.",
+	"license": "Open Source",
+	"category": "Games",
+	"flatpak": {
+		"app_id": "com.heroicgameslauncher.hgl",
+		"remote": "flathub"
+	}
+}
