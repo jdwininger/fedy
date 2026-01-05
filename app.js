@@ -735,7 +735,7 @@ const Application = new Lang.Class({
                 // exact spacing (10px) and vertical centering relative to the icon
                 let titleBox = new Gtk.Box({
                     orientation: Gtk.Orientation.HORIZONTAL,
-                    spacing: 10,
+                    spacing: 6,
                     halign: Gtk.Align.START,
                     valign: Gtk.Align.CENTER,
                     hexpand: true
@@ -759,11 +759,12 @@ const Application = new Lang.Class({
                 let description = new Gtk.Label({
                     label: plugin.description,
                     halign: Gtk.Align.START,
-                    margin_top: 0
+                    margin_top: 0,
+                    margin_bottom: 0
                 });
 
                 // Reduce spacing between title and description
-                try { description.set_margin_top(2); } catch (e) {}
+                try { description.set_margin_top(1); description.set_margin_bottom(0); } catch (e) {}
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
@@ -783,7 +784,7 @@ const Application = new Lang.Class({
                             halign: Gtk.Align.END,
                             valign: Gtk.Align.CENTER,
                             hexpand: true,
-                            vexpand: true,
+                            vexpand: false,
                             spacing: 6
                         });
 
