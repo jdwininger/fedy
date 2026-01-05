@@ -4,6 +4,7 @@
   "description": "Installs Nvidia Drivers from RPM Fusion.",
   "license": "Proprietary",
   "category": "Drivers",
+  "hint": "Installs system-level NVIDIA drivers (kernel/driver packages; no GUI).",
   "no_uninstall": true,
   "requires_nonfree": true,
   "packages": [

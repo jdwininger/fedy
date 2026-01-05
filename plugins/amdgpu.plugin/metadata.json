@@ -4,6 +4,7 @@
   "description": "Installs AMD GPU userspace drivers and Vulkan support packages.",
   "license": "Open Source",
   "category": "Drivers",
+  "hint": "Installs AMD GPU drivers and runtime (system-level, no GUI).",
   "no_uninstall": true,
   "packages": [
     "xorg-x11-drv-amdgpu",
