@@ -1178,6 +1178,43 @@ const Application = new Lang.Class({
         }
     },
 
+    _saveConfig: function() {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/config.json";
+            this._saveJSON(path, this._config || {});
+        } catch (e) {
+            print('Error saving config: ' + e.message);
+        }
+    },
+
+    _quickSaveManifestToDesktop: function() {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/manifest.json";
+            let manifest = this._loadJSON(path) || [];
+
+            let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
+            if (!desktop) desktop = GLib.get_home_dir();
+            let filename = desktop + '/fedy-manifest.json';
+
+            this._saveJSON(filename, manifest);
+
+            // Persist the last export directory
+            try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._saveConfig(); } catch (e) {}
+
+            let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+            dialog.add_button('OK', Gtk.ResponseType.OK);
+            dialog.connect('response', () => dialog.destroy());
+            dialog.show();
+        } catch (e) {
+            let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+            dialog.add_button('OK', Gtk.ResponseType.OK);
+            dialog.connect('response', () => dialog.destroy());
+            dialog.show();
+        }
+    },
+
     _applyTheme: function() {
         let theme = (this._config && this._config.theme) ? this._config.theme : "system";
         print('Applying theme, config requested: ' + theme);
@@ -1369,12 +1406,16 @@ const Application = new Lang.Class({
         let exportButton = new Gtk.Button({ label: 'Export manifest' });
         exportButton.connect('clicked', () => this._exportManifest());
 
+        let quickSaveButton = new Gtk.Button({ label: 'Save manifest to Desktop' });
+        quickSaveButton.connect('clicked', () => this._quickSaveManifestToDesktop());
+
         let importButton = new Gtk.Button({ label: 'Import manifest' });
         importButton.connect('clicked', () => this._importManifest());
 
         vbox.append(infoLabel);
         vbox.append(currentLabel);
         vbox.append(exportButton);
+        vbox.append(quickSaveButton);
         vbox.append(importButton);
 
         // Determine current effective system color-scheme
@@ -1442,10 +1483,10 @@ const Application = new Lang.Class({
 
         fc.set_current_name('fedy-manifest.json');
 
-        // Default the save dialog to the user's Documents folder (fallback to Home)
+        // Default the save dialog to either the last export directory (if set) or the user's Documents folder (fallback to Home)
         try {
-            let docs = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
-            if (docs) fc.set_current_folder(docs);
+            let defaultDir = (this._config && this._config.last_export_dir) ? this._config.last_export_dir : (GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir());
+            if (defaultDir) fc.set_current_folder(defaultDir);
         } catch (e) {
             // ignore if not available
         }
@@ -1488,6 +1529,10 @@ const Application = new Lang.Class({
                     let filename = chooser.get_file().get_path();
                     try {
                         this._saveJSON(filename, manifest);
+
+                        // Persist the last export directory used
+                        try { this._config = this._config || {}; this._config.last_export_dir = GLib.path_get_dirname(filename); this._saveConfig(); } catch (e) {}
+
                         let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
                         dialog.add_button('OK', Gtk.ResponseType.OK);
                         dialog.connect('response', () => dialog.destroy());
