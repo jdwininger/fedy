@@ -1188,6 +1188,71 @@ const Application = new Lang.Class({
         }
     },
 
+    _generateManifestFromInstalled: function(cb = () => {}) {
+        // Walk plugins and detect installed ones, then write the canonical manifest
+        let all = [];
+        for (let cat of Object.keys(this._plugins || {})) {
+            for (let key of Object.keys(this._plugins[cat] || {})) {
+                all.push(this._plugins[cat][key]);
+            }
+        }
+
+        let manifest = [];
+        let idx = 0;
+        const next = () => {
+            if (idx >= all.length) {
+                try {
+                    let datadir = GLib.get_user_data_dir() + "/fedy";
+                    let path = datadir + "/manifest.json";
+                    this._saveJSON(path, manifest);
+                } catch (e) {
+                    print('Error saving generated manifest: ' + e.message);
+                }
+
+                cb(manifest);
+                return;
+            }
+
+            let p = all[idx++];
+
+            // Determine a check command
+            let checkCmd = null;
+            if (p.scripts && p.scripts.status && p.scripts.status.command) {
+                checkCmd = p.scripts.status.command;
+            } else if (p.packages && Array.isArray(p.packages) && p.packages.length) {
+                // check if any package is installed
+                let pkgs = p.packages.map(x => x.replace(/'/g, "'\\''")).join(' ');
+                checkCmd = "bash -lc 'for p in " + pkgs + "; do rpm -q \"$p\" >/dev/null 2>&1 && exit 0; done; exit 1'";
+            } else if (p.flatpak && p.flatpak.app_id) {
+                checkCmd = "bash -lc 'flatpak info " + p.flatpak.app_id + " >/dev/null 2>&1 && exit 0 || exit 1'";
+            }
+
+            if (!checkCmd) {
+                // Skip - can't determine
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => { next(); return false; });
+                return;
+            }
+
+            this._runPluginCommand(p, checkCmd, (pid, status) => {
+                if (status === 0) {
+                    manifest.push({
+                        slug: p.slug || null,
+                        label: p.label || null,
+                        category: p.category || null,
+                        packages: p.packages || null,
+                        flatpak: p.flatpak || null,
+                        exec_command: (p.scripts && p.scripts.exec) ? p.scripts.exec.command : null,
+                        installed_at: (new Date()).toISOString()
+                    });
+                }
+
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => { next(); return false; });
+            }, this._executeCommand);
+        };
+
+        next();
+    },
+
     _quickSaveManifestToDesktop: function() {
         try {
             let datadir = GLib.get_user_data_dir() + "/fedy";
@@ -1196,17 +1261,45 @@ const Application = new Lang.Class({
 
             let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
             if (!desktop) desktop = GLib.get_home_dir();
-            let filename = desktop + '/fedy-manifest.json';
+            let filename = desktop + '/' + ((this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json');
 
-            this._saveJSON(filename, manifest);
+            const doSave = (m) => {
+                try {
+                    this._saveJSON(filename, m);
+                    // Persist the last export directory
+                    try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._config.quick_export_filename = GLib.get_basename(filename); this._saveConfig(); } catch (e) {}
 
-            // Persist the last export directory
-            try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._saveConfig(); } catch (e) {}
+                    // Show notification
+                    try { const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' }); notification.set_timeout(3000); notification.show(); } catch (e) {}
 
-            let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
-            dialog.add_button('OK', Gtk.ResponseType.OK);
-            dialog.connect('response', () => dialog.destroy());
-            dialog.show();
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+            };
+
+            if (!manifest || manifest.length === 0) {
+                // Prompt to generate from current system
+                let confirm = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest appears empty. Generate manifest from currently installed plugins and save to Desktop?' });
+                confirm.add_button('No', Gtk.ResponseType.CANCEL);
+                confirm.add_button('Yes', Gtk.ResponseType.OK);
+                confirm.connect('response', (d, resp) => {
+                    d.destroy();
+                    if (resp !== Gtk.ResponseType.OK) return;
+
+                    this._generateManifestFromInstalled((generated) => { doSave(generated); });
+                });
+                confirm.show();
+                return;
+            }
+
+            doSave(manifest);
         } catch (e) {
             let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
             dialog.add_button('OK', Gtk.ResponseType.OK);
@@ -1494,6 +1587,27 @@ const Application = new Lang.Class({
         let path = datadir + "/manifest.json";
 
         let manifest = this._loadJSON(path) || [];
+
+        if (!manifest || manifest.length === 0) {
+            let confirm = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest appears empty. Would you like to generate it from currently installed plugins before exporting?' });
+            confirm.add_button('No', Gtk.ResponseType.CANCEL);
+            confirm.add_button('Yes', Gtk.ResponseType.OK);
+
+            confirm.connect('response', (d, resp) => {
+                d.destroy();
+                if (resp !== Gtk.ResponseType.OK) return;
+
+                this._generateManifestFromInstalled((generated) => {
+                    let info = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Generated ' + generated.length + ' entries from installed plugins. Re-opening export dialog.' });
+                    info.add_button('OK', Gtk.ResponseType.OK);
+                    info.connect('response', () => { info.destroy(); this._exportManifest(); });
+                    info.show();
+                });
+            });
+
+            confirm.show();
+            return;
+        }
 
         let fc = new Gtk.FileChooserNative({
             title: "Export manifest",
