@@ -1586,18 +1586,37 @@ const Application = new Lang.Class({
                 let cancelBtn = pd.get_widget_for_response(Gtk.ResponseType.CANCEL);
                 if (cancelBtn) {
                     cancelBtn.connect('clicked', () => {
-                        cancelRequested = true;
-                        cancelBtn.set_sensitive(false);
+                        // Ask for confirmation before cancelling remaining tasks
+                        let confirm = new Gtk.MessageDialog({ modal: true, transient_for: pd, text: 'Finish the current step and stop any further installations?' });
+                        confirm.add_button('No', Gtk.ResponseType.CANCEL);
+                        confirm.add_button('Yes', Gtk.ResponseType.OK);
 
-                        // Clear the global queue so no further tasks are started
-                        try { this._queue = []; } catch (e) {}
+                        confirm.connect('response', (dlg, resp) => {
+                            dlg.destroy();
 
-                        // Mark remaining rows as cancel pending
-                        for (let j = 0; j < rows.length; j++) {
-                            if (rows[j].get_text && rows[j].get_text().indexOf(': installed') === -1 && rows[j].get_text().indexOf(': failed') === -1) {
-                                try { rows[j].set_label(tasks[j].label + ': cancelling'); } catch (e) {}
+                            // If user declines, re-enable cancel button and do nothing
+                            if (resp !== Gtk.ResponseType.OK) {
+                                try { cancelBtn.set_sensitive(true); } catch (e) {}
+                                return;
                             }
-                        }
+
+                            // Proceed with cancellation: finish current step, stop starting new ones
+                            cancelRequested = true;
+                            try { cancelBtn.set_sensitive(false); } catch (e) {}
+
+                            // Clear the global queue so no further tasks are started
+                            try { this._queue = []; } catch (e) {}
+
+                            // Mark remaining rows as cancel pending
+                            for (let j = 0; j < rows.length; j++) {
+                                try {
+                                    let txt = (rows[j].get_text) ? rows[j].get_text() : '';
+                                    if (txt.indexOf(': installed') === -1 && txt.indexOf(': failed') === -1 && txt.indexOf(': cancelling') === -1) {
+                                        rows[j].set_label(tasks[j].label + ': cancelling');
+                                    }
+                                } catch (e) {}
+                            }
+                        });
                     });
                 }
 
