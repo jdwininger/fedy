@@ -1738,6 +1738,78 @@ const Application = new Lang.Class({
                 }
             }
 
+            // If any entries were skipped, show a dialog to explain and offer fallback installs
+            if (skipped.length) {
+                let sd = new Gtk.Dialog({ title: 'Skipped manifest entries', modal: true, transient_for: this._window });
+                sd.add_button('Cancel', Gtk.ResponseType.CANCEL);
+                sd.add_button('Proceed with matched entries', Gtk.ResponseType.OK);
+
+                let fallbackable = [];
+
+                let sc = sd.get_content_area();
+                sc.set_margin_start(12); sc.set_margin_end(12); sc.set_margin_top(12); sc.set_margin_bottom(12);
+
+                let info = new Gtk.Label({ label: skipped.length + ' entries skipped (not available in this Fedy installation).', halign: Gtk.Align.START });
+                sc.append(info);
+
+                let list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+
+                for (let e of skipped) {
+                    let reason = 'Not matched to any plugin';
+                    let fb = null;
+
+                    if (e.flatpak && e.flatpak.app_id) {
+                        reason = 'Flatpak: ' + e.flatpak.app_id;
+                        fb = 'flatpak install -y ' + (e.flatpak.remote ? (GLib.shell_quote(e.flatpak.remote) + ' ') : '') + GLib.shell_quote(e.flatpak.app_id);
+                    } else if (e.packages && Array.isArray(e.packages) && e.packages.length) {
+                        reason = 'Packages: ' + e.packages.join(', ');
+                        let pkgs = e.packages.map(x => GLib.shell_quote(x)).join(' ');
+                        fb = 'dnf -y install ' + pkgs;
+                    } else if (e.exec_command) {
+                        reason = 'Exec: ' + e.exec_command;
+                        fb = e.exec_command;
+                    } else {
+                        reason = 'No install information available';
+                    }
+
+                    let row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
+                    let lbl = new Gtk.Label({ label: (e.label || e.slug || 'Unknown') + ': ' + reason, halign: Gtk.Align.START, xalign: 0 });
+                    row.append(lbl);
+                    list.append(row);
+
+                    if (fb) fallbackable.push({ entry: e, command: fb });
+                }
+
+                sc.append(list);
+
+                if (fallbackable.length) {
+                    sd.add_button('Attempt fallback installs', Gtk.ResponseType.APPLY);
+                }
+
+                sd.connect('response', (dlg, resp) => {
+                    dlg.destroy();
+
+                    if (resp === Gtk.ResponseType.CANCEL) return; // abort
+
+                    if (resp === Gtk.ResponseType.APPLY) {
+                        // Build new tasks based on fallbackable commands
+                        let newTasks = [];
+                        for (let f of fallbackable) {
+                            newTasks.push({ label: (f.entry.label || f.entry.slug || 'Unknown'), scripts: { exec: { command: f.command } }, path: '.' });
+                        }
+
+                        tasks = newTasks;
+                    }
+
+                    // If user chose OK, tasks remain as originally matched. In either case, proceed to runTasks
+                    runTasks(false);
+                });
+
+                sd.show();
+
+                return; // wait for user's response
+            }
+
             const runTasks = (isTest = false) => {
                 // Create progress dialog
                 let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: this._window });
