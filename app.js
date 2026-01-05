@@ -1388,9 +1388,6 @@ const Application = new Lang.Class({
             currentLabel.set_label('Current: unknown (GNOME settings not found)');
         }
 
-        vbox.append(infoLabel);
-        vbox.append(currentLabel);
-
         content.append(vbox);
 
         dialog.connect("response", () => dialog.destroy());
@@ -1443,7 +1440,7 @@ const Application = new Lang.Class({
             transient_for: this._window
         });
 
-        fc.set_filename('fedy-manifest.json');
+        fc.set_current_name('fedy-manifest.json');
 
         // Default the save dialog to the user's Documents folder (fallback to Home)
         try {
