@@ -1742,6 +1742,11 @@ const Application = new Lang.Class({
             // Otherwise perform real install
             runTasks(false);
 
+            });
+
+            dialog.show();
+        },
+
     _importManifest: function() {
         let fc = new Gtk.FileChooserNative({ title: 'Import manifest', action: Gtk.FileChooserAction.OPEN, transient_for: this._window });
 
