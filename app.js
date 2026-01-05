@@ -1817,7 +1817,7 @@ const Application = new Lang.Class({
             function runTasks(isTest = false) {
                 print('runTasks starting, isTest=' + isTest + ', tasks=' + (tasks ? tasks.length : 0));
                 // Create progress dialog
-                let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: this._window });
+                let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: parentWindow });
                 pd.add_button('Cancel', Gtk.ResponseType.CANCEL);
                 pd.add_button('Close', Gtk.ResponseType.CLOSE);
                 let content = pd.get_content_area();
@@ -2019,7 +2019,7 @@ const Application = new Lang.Class({
                                 if (closeBtn) closeBtn.set_sensitive(true);
 
                                 GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest installation cancelled. ' + (completed + 1) + ' items processed.'});
+                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: parentWindow, text: 'Manifest installation cancelled. ' + (completed + 1) + ' items processed.'});
                                     done.add_button('OK', Gtk.ResponseType.OK);
                                     done.connect('response', () => done.destroy());
                                     done.show();
@@ -2046,7 +2046,7 @@ const Application = new Lang.Class({
 
                                 // Append a quick summary dialog
                                 GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: (isTest ? 'Self-test finished.' : 'Manifest installation finished.') + ' ' + completed + ' items processed.'});
+                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: parentWindow, text: (isTest ? 'Self-test finished.' : 'Manifest installation finished.') + ' ' + completed + ' items processed.'});
                                     done.add_button('OK', Gtk.ResponseType.OK);
                                     done.connect('response', () => done.destroy());
                                     done.show();
