@@ -1820,9 +1820,9 @@ const Application = new Lang.Class({
                     list.append(skipLabel);
                 }
 
-                content.append(statusLabel);
-                content.append(progress);
-                content.append(list);
+                safeAppend(content, statusLabel);
+                safeAppend(content, progress);
+                safeAppend(content, list);
 
                 // Disable Close until finished
                 let closeBtn = pd.get_widget_for_response(Gtk.ResponseType.CLOSE);
