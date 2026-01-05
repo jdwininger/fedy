@@ -1,0 +1,18 @@
+{
+	"label": "Encrypted DVD playback (libdvdcss)",
+	"description": "Simple library designed for accessing DVDs like a block device.",
+	"license": "GPLv2",
+	"category": "Utilities",
+	"hint": "Installs libdvdcss (system-level library; no GUI).",
+	"scripts": {
+		"exec": {
+			"label": "Install",
+			"command": "run-as-root -s install.sh"
+		},
+		"undo": {
+			"label": "Remove",
+			"command": "run-as-root dnf -y remove libdvdcss livna-release"
+		},
+		"status": { "command": "rpm --quiet --query libdvdcss" }
+	}
+}

@@ -1,0 +1,19 @@
+{
+	"icon": "file-roller",
+	"label": "Archive formats",
+	"description": "Utilized by file-roller to extract or compress different formats.",
+	"license": [ "GPLv2", "GPLv3", "LGPLv2" ],
+	"category": "Utilities",
+	"hint": "Installs archive utilities (system-level, no GUI).",
+	"scripts": {
+		"exec": {
+			"label": "Install",
+			"command": "run-as-root dnf -y install cabextract lzip p7zip p7zip-plugins unrar"
+		},
+		"undo": {
+			"label": "Remove",
+			"command": "run-as-root dnf -y remove cabextract lzip p7zip p7zip-plugins unrar"
+		},
+		"status": { "command": "rpm --quiet --query cabextract lzip p7zip p7zip-plugins unrar" }
+	}
+}

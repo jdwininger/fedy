@@ -1,0 +1,19 @@
+{
+	"icon": "preferences-desktop-font",
+	"label": "Microsoft TrueType core fonts",
+	"description": "Times New Roman, Arial, Comic Sans and other core Microsoft fonts.",
+	"license": "Freeware",
+	"category": "Utilities",
+	"hint": "Installs system fonts used by many documents and apps; no GUI.",
+	"scripts": {
+		"exec": {
+			"label": "Install",
+			"command": "run-as-root -s install.sh"
+		},
+		"undo": {
+			"label": "Remove",
+			"command": "run-as-root -s uninstall.sh"
+		},
+		"status": { "command": "rpm --quiet --query msttcore-fonts-installer" }
+	}
+}

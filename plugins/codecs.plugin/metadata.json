@@ -1,0 +1,19 @@
+{
+	"icon": "applications-multimedia",
+	"label": "Multimedia codecs",
+	"description": "Utilized by multimedia applications to encode or decode audio or video streams.",
+	"license": [ "BSD", "GPLv2", "LGPLv2", "GFDL" ],
+	"category": "Utilities",
+	"hint": "Installs common multimedia codecs and plugins (system-level, no GUI).",
+	"scripts": {
+		"exec": {
+			"label": "Install",
+			"command": "run-as-root dnf -y groupinstall multimedia"
+		},
+		"undo": {
+			"label": "Remove",
+			"command": "run-as-root dnf -y remove gstreamer1-libav"
+		},
+		"status": { "command": "rpm --quiet --query gstreamer1-libav" }
+	}
+}
