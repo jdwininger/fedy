@@ -6,6 +6,7 @@
     "icon": "arduino",
     "category": "Development Tools",
     "homepage": "https://www.arduino.cc/",
+    "status": { "command": "rpm --quiet --query arduino" },
     "scripts": {
         "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
         "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
