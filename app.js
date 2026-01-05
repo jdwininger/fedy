@@ -1789,6 +1789,8 @@ const Application = new Lang.Class({
                 sd.connect('response', (dlg, resp) => {
                     dlg.destroy();
 
+                    print('Skipped dialog response: ' + resp);
+
                     if (resp === Gtk.ResponseType.CANCEL) return; // abort
 
                     if (resp === Gtk.ResponseType.APPLY) {
@@ -1799,18 +1801,21 @@ const Application = new Lang.Class({
                         }
 
                         tasks = newTasks;
+                        print('Fallback tasks built: ' + tasks.length);
                     }
 
                     // If user chose OK, tasks remain as originally matched. In either case, proceed to runTasks
                     runTasks(false);
                 });
 
+                print('Showing skipped dialog with ' + skipped.length + ' skipped, ' + fallbackable.length + ' fallbackable');
                 sd.show();
 
                 return; // wait for user's response
             }
 
             function runTasks(isTest = false) {
+                print('runTasks starting, isTest=' + isTest + ', tasks=' + (tasks ? tasks.length : 0));
                 // Create progress dialog
                 let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: this._window });
                 pd.add_button('Cancel', Gtk.ResponseType.CANCEL);
