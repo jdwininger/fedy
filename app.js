@@ -624,6 +624,11 @@ const Application = new Lang.Class({
                 margin-bottom: 0;
             }
 
+            /* Force a consistent plugin row minimum height to avoid oversized rows */
+            .view .even-row, .view .odd-row {
+                min-height: 56px;
+            }
+
             /* Flatpak buttons now use theme-provided action classes
                (suggested-action/destructive-action) so their colors match
                the rest of the UI and respect the current GTK theme. */
@@ -779,8 +784,11 @@ const Application = new Lang.Class({
                     margin_bottom: 0
                 });
 
-                // Reduce spacing between title and description
-                try { description.set_margin_top(0); description.set_margin_bottom(0); } catch (e) {}
+                // Reduce spacing between title and description and prevent wrapping
+                try { description.set_margin_top(0); description.set_margin_bottom(0); description.set_wrap(false); description.set_valign(Gtk.Align.CENTER); } catch (e) {}
+
+                // Ensure the title area doesn't expand vertically
+                try { titleBox.set_vexpand(false); titleBox.set_valign(Gtk.Align.CENTER); } catch (e) {}
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
