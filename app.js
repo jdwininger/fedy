@@ -1525,12 +1525,6 @@ const Application = new Lang.Class({
         vbox.append(fnameBox);
         vbox.append(importButton);
 
-        vbox.append(infoLabel);
-        vbox.append(currentLabel);
-        vbox.append(exportButton);
-        vbox.append(quickSaveButton);
-        vbox.append(importButton);
-
         // Determine current effective system color-scheme
         try {
             let effective = 'Light (default)';
