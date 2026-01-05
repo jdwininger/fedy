@@ -7,6 +7,7 @@
 	"hint": "Installs system Java runtime (OpenJDK latest; no GUI).",
 	"scripts": {
 		"status": { "command": "bash status.sh" },
+		"status_jdk": { "command": "bash status-jdk.sh" },
 		"exec": {
 			"label": "Install Runtime",
 			"command": "run-as-root -s install.sh"

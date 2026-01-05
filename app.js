@@ -964,13 +964,22 @@ const Application = new Lang.Class({
                                 }, this._executeCommand);
                             });
 
-                            // Disable button if javac (JDK) is already installed
-                            this._executeCommand(null, "command -v javac", (pid, status) => {
-                                if (status === 0) {
-                                    try { jdkButton.set_sensitive(false); } catch (e) {}
-                                    try { jdkButton.set_label('JDK installed'); } catch (e) {}
-                                }
-                            });
+                            // Disable button if JDK is already installed — prefer plugin-provided status script
+                            if (plugin.scripts && plugin.scripts.status_jdk && plugin.scripts.status_jdk.command) {
+                                this._runPluginCommand(plugin, plugin.scripts.status_jdk.command, (pid, status) => {
+                                    if (status === 0) {
+                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                    }
+                                }, this._executeCommand);
+                            } else {
+                                this._executeCommand(null, "command -v javac", (pid, status) => {
+                                    if (status === 0) {
+                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                    }
+                                });
+                            }
 
                             try { jdkButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
                             try { jdkSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
