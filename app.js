@@ -559,6 +559,15 @@ const Application = new Lang.Class({
 
                     if (status === 0) {
                         button.set_label("Finished!");
+
+                        // Record successful install actions to the user's manifest so they can be
+                        // exported/imported for system setup automation. Only record when the
+                        // executed action was the install (scripts.exec).
+                        try {
+                            if (action === plugin.scripts.exec) {
+                                try { this._appendToManifest(plugin); } catch (e) { print('Failed to append to manifest: ' + e.message); }
+                            }
+                        } catch (e) {}
                     } else {
                         button.set_label("Error!");
                     }
@@ -1356,6 +1365,18 @@ const Application = new Lang.Class({
         let currentLabel = new Gtk.Label({ label: "Current: determining..." });
         currentLabel.set_halign(Gtk.Align.START);
 
+        // Manifest export/import helpers
+        let exportButton = new Gtk.Button({ label: 'Export manifest' });
+        exportButton.connect('clicked', () => this._exportManifest());
+
+        let importButton = new Gtk.Button({ label: 'Import manifest' });
+        importButton.connect('clicked', () => this._importManifest());
+
+        vbox.append(infoLabel);
+        vbox.append(currentLabel);
+        vbox.append(exportButton);
+        vbox.append(importButton);
+
         // Determine current effective system color-scheme
         try {
             let effective = 'Light (default)';
@@ -1374,6 +1395,142 @@ const Application = new Lang.Class({
 
         dialog.connect("response", () => dialog.destroy());
         dialog.show();
+    },
+
+    _appendToManifest: function(plugin) {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/manifest.json";
+
+            let manifest = this._loadJSON(path) || [];
+
+            // Build entry with the canonical metadata we can later act upon
+            let entry = {
+                slug: plugin.slug || null,
+                label: plugin.label || null,
+                category: plugin.category || null,
+                packages: plugin.packages || null,
+                flatpak: plugin.flatpak || null,
+                exec_command: (plugin.scripts && plugin.scripts.exec) ? plugin.scripts.exec.command : null,
+                installed_at: (new Date()).toISOString()
+            };
+
+            // Deduplicate by slug (replace) or by exec_command if slug missing
+            let idx = -1;
+
+            for (let i = 0; i < manifest.length; i++) {
+                if (entry.slug && manifest[i].slug === entry.slug) { idx = i; break; }
+                if (!entry.slug && entry.exec_command && manifest[i].exec_command === entry.exec_command) { idx = i; break; }
+            }
+
+            if (idx === -1) manifest.push(entry); else manifest[idx] = entry;
+
+            this._saveJSON(path, manifest);
+        } catch (e) {
+            print('Error appending to manifest: ' + e.message);
+        }
+    },
+
+    _exportManifest: function() {
+        let datadir = GLib.get_user_data_dir() + "/fedy";
+        let path = datadir + "/manifest.json";
+
+        let manifest = this._loadJSON(path) || [];
+
+        let fc = new Gtk.FileChooserNative({
+            title: "Export manifest",
+            action: Gtk.FileChooserAction.SAVE,
+            transient_for: this._window
+        });
+
+        fc.set_filename('fedy-manifest.json');
+
+        fc.connect('response', (chooser, response) => {
+            if (response === Gtk.ResponseType.ACCEPT) {
+                let filename = chooser.get_file().get_path();
+                try {
+                    this._saveJSON(filename, manifest);
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+            }
+            chooser.destroy();
+        });
+
+        fc.show();
+    },
+
+    _installPluginsFromManifest: function(entries) {
+        // Confirm with the user
+        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Install ' + entries.length + ' entries from manifest?'});
+        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
+        dialog.add_button('Install', Gtk.ResponseType.OK);
+
+        dialog.connect('response', (d, resp) => {
+            d.destroy();
+
+            if (resp !== Gtk.ResponseType.OK) return;
+
+            // For each entry, find the plugin and queue its exec action
+            for (let e of entries) {
+                let found = null;
+
+                for (let cat of Object.keys(this._plugins)) {
+                    for (let key of Object.keys(this._plugins[cat])) {
+                        let p = this._plugins[cat][key];
+                        if ((e.slug && p.slug && p.slug === e.slug) || (e.label && p.label && p.label === e.label)) {
+                            found = p;
+                            break;
+                        }
+                    }
+
+                    if (found) break;
+                }
+
+                if (found && found.scripts && found.scripts.exec && found.scripts.exec.command) {
+                    // Execute via queue so we don't parallelize everything
+                    this._queueCommand(found.path, found.scripts.exec.command, () => {});
+                }
+            }
+
+            // Inform the user that installation jobs are queued
+            let info = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Install jobs queued; check progress in the UI.' });
+            info.add_button('OK', Gtk.ResponseType.OK);
+            info.connect('response', () => info.destroy());
+            info.show();
+        });
+
+        dialog.show();
+    },
+
+    _importManifest: function() {
+        let fc = new Gtk.FileChooserNative({ title: 'Import manifest', action: Gtk.FileChooserAction.OPEN, transient_for: this._window });
+
+        fc.connect('response', (chooser, response) => {
+            if (response === Gtk.ResponseType.ACCEPT) {
+                let filename = chooser.get_file().get_path();
+                try {
+                    let manifest = this._loadJSON(filename) || [];
+                    this._installPluginsFromManifest(manifest);
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to import manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+            }
+
+            chooser.destroy();
+        });
+
+        fc.show();
     },
 
     _setFlatpakButtonState: function(button, plugin, spinner) {
@@ -1618,6 +1775,8 @@ const Application = new Lang.Class({
 
                         plugins[parsed.category][plugin] = parsed;
                         plugins[parsed.category][plugin].path = plugindir + "/" + name;
+                        // Record the plugin slug (folder name) so we can reference it later
+                        plugins[parsed.category][plugin].slug = plugin;
                     }
                 }
             }
