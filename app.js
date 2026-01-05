@@ -1814,6 +1814,7 @@ const Application = new Lang.Class({
                 return; // wait for user's response
             }
 
+            let parentWindow = this._window;
             function runTasks(isTest = false) {
                 print('runTasks starting, isTest=' + isTest + ', tasks=' + (tasks ? tasks.length : 0));
                 // Create progress dialog
