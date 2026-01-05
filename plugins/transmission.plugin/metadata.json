@@ -3,7 +3,7 @@
 	"label": "Transmission",
 	"description": "Transmission BitTorrent client.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "com.transmissionbt.Transmission",
 		"remote": "flathub"

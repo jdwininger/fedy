@@ -3,7 +3,7 @@
 	"label": "Flatseal",
 	"description": "Flatseal - manage Flatpak permissions.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "com.github.tchx84.Flatseal",
 		"remote": "flathub"

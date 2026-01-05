@@ -4,7 +4,7 @@
     "description": "Discover, download, and run local LLMs.",
     "license": "Proprietary",
     "icon": "lm-studio",
-    "category": "Applications",
+    "category": "Apps",
     "homepage": "https://lmstudio.ai/",
     "status": { "command": "bash -lc 'shopt -s nullglob; files=(\"$HOME/Applications/LM Studio/lm-studio"*.AppImage); (( ${#files[@]} )) && exit 0 || exit 1'" },
     "scripts": {

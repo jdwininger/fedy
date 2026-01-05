@@ -3,7 +3,7 @@
 	"label": "Discord",
 	"description": "Discord desktop text, voice and video chat application.",
 	"license": "Proprietary",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "com.discordapp.Discord",
 		"remote": "flathub"

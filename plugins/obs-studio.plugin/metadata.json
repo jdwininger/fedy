@@ -3,7 +3,7 @@
 	"label": "OBS Studio",
 	"description": "OBS Studio is a powerful open-source software for video recording and live streaming.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "com.obsproject.Studio",
 		"remote": "flathub"

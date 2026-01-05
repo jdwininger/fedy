@@ -3,7 +3,7 @@
 	"label": "VLC",
 	"description": "VLC media player is a free and open-source media player.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "org.videolan.VLC",
 		"remote": "flathub"

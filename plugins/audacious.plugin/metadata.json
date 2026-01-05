@@ -3,7 +3,7 @@
 	"label": "Audacious",
 	"description": "Audacious music player, Looks great using old school Winamp skins.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "org.atheme.audacious",
 		"remote": "flathub"

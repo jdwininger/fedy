@@ -3,7 +3,7 @@
 	"label": "Blender",
 	"description": "Blender 3D creation, modeling and rendering suite.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "org.blender.Blender",
 		"remote": "flathub"

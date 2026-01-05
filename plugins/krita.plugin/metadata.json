@@ -3,7 +3,7 @@
 	"label": "Krita",
 	"description": "Krita is a professional digital painting application.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "org.kde.krita",
 		"remote": "flathub"

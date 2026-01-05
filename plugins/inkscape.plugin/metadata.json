@@ -3,7 +3,7 @@
 	"label": "Inkscape",
 	"description": "Inkscape is a professional vector graphics editor.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "org.inkscape.Inkscape",
 		"remote": "flathub"

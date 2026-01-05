@@ -3,7 +3,7 @@
 	"label": "HandBrake",
 	"description": "HandBrake is a powerful, open-source video transcoder.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Apps",
 	"flatpak": {
 		"app_id": "fr.handbrake.ghb",
 		"remote": "flathub"
