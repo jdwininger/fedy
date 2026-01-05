@@ -27,6 +27,17 @@ else
 fi
 chmod +x "$APPIMAGE"
 
+# Keep only the latest N AppImage files (default 2) to allow rollback but avoid disk clutter
+KEEP=${KEEP:-2}
+shopt -s nullglob
+mapfile -t appimages < <(ls -1t "$INSTALL_DIR"/*.AppImage 2>/dev/null || true)
+if (( ${#appimages[@]} > KEEP )); then
+    for ((i=KEEP;i<${#appimages[@]};i++)); do
+        rm -f "${appimages[$i]}"
+    done
+    echo "Removed $(( ${#appimages[@]} - KEEP )) old AppImage(s) from $INSTALL_DIR"
+fi
+
 # Try to extract an icon from the AppImage; fallback to bundled svg
 pushd "$INSTALL_DIR" > /dev/null
 "$APPIMAGE" --appimage-extract >/dev/null 2>&1 || true
