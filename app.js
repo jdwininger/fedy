@@ -663,8 +663,19 @@ const Application = new Lang.Class({
         }
 
         let sort = (row1, row2) => {
-            let label1 = row1.get_child().get_child_at(1, 1).get_label(),
-                label2 = row2.get_child().get_child_at(1, 1).get_label();
+            let getTitle = (row) => {
+                try {
+                    let rowBox = row.get_child();
+                    let textVBox = rowBox.get_children()[1];
+                    let titleBox = textVBox.get_children()[0];
+                    return titleBox.get_children()[0].get_label();
+                } catch (e) {
+                    return "";
+                }
+            };
+
+            let label1 = getTitle(row1);
+            let label2 = getTitle(row2);
 
             if (label1 > label2) {
                 return 1;
@@ -709,16 +720,16 @@ const Application = new Lang.Class({
                 let plugin = this._plugins[category][item];
                 print('fedy: loading plugin ' + plugin.category + '::' + plugin.label);
 
-                let grid = new Gtk.Grid({
-                    row_spacing: 2,
-                    column_spacing: 2,
-                    margin_start: 2,
-                    margin_end: 2,
-                    margin_top: 2,
-                    margin_bottom: 2
+                let rowBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.HORIZONTAL,
+                    spacing: 12,
+                    margin_start: 8,
+                    margin_end: 8,
+                    margin_top: 6,
+                    margin_bottom: 6
                 });
 
-                grid.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
+                rowBox.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
 
                 let image = new Gtk.Image();
 
@@ -747,19 +758,22 @@ const Application = new Lang.Class({
                     image.set_from_icon_name("system-run");
                 }
 
-                // Center the plugin icon vertically in its grid cell
-                try { image.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                image.set_valign(Gtk.Align.CENTER);
+                rowBox.append(image);
 
-                grid.attach(image, 0, 1, 1, 2);
-
-                // Title area (plugin name + license) — use an HBox to guarantee
-                // exact spacing (10px) and vertical centering relative to the icon
-                let titleBox = new Gtk.Box({
-                    orientation: Gtk.Orientation.HORIZONTAL,
-                    spacing: 4,
-                    halign: Gtk.Align.START,
+                // Text container (Title + Description)
+                let textVBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.VERTICAL,
+                    spacing: 2,
                     valign: Gtk.Align.CENTER,
                     hexpand: true
+                });
+
+                // Title area
+                let titleBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.HORIZONTAL,
+                    spacing: 6,
+                    halign: Gtk.Align.START
                 });
 
                 let label = new Gtk.Label({ halign: Gtk.Align.START });
@@ -774,47 +788,38 @@ const Application = new Lang.Class({
                 }
                 titleBox.append(license);
 
-                grid.attach(titleBox, 1, 1, 1, 1);
-                try { titleBox.set_margin_bottom(0); } catch (e) {}
+                textVBox.append(titleBox);
 
                 let description = new Gtk.Label({
                     label: plugin.description,
                     halign: Gtk.Align.START,
-                    margin_top: 0,
-                    margin_bottom: 0
+                    wrap: true,
+                    max_width_chars: 60,
+                    xalign: 0
                 });
-
-                // Reduce spacing between title and description and prevent wrapping
-                try { description.set_margin_top(0); description.set_margin_bottom(0); description.set_wrap(false); description.set_valign(Gtk.Align.CENTER); } catch (e) {}
-
-                // Ensure the title area doesn't expand vertically
-                try { titleBox.set_vexpand(false); titleBox.set_valign(Gtk.Align.CENTER); } catch (e) {}
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
-
                 description.connect("query_tooltip", settooltip(plugin));
 
-                grid.attach(description, 1, 2, 2, 1);
+                textVBox.append(description);
+                rowBox.append(textVBox);
 
                 if (plugin.scripts) {
                     if (plugin.scripts.exec) {
                         let spinner = new Gtk.Spinner();
-
-                        grid.attach(spinner, 2, 1, 1, 2);
+                        spinner.set_valign(Gtk.Align.CENTER);
+                        rowBox.append(spinner);
 
                         let box = new Gtk.Box({
                             orientation: Gtk.Orientation.VERTICAL,
                             halign: Gtk.Align.END,
                             valign: Gtk.Align.CENTER,
-                            hexpand: true,
-                            vexpand: false,
                             spacing: 6
                         });
 
                         try { box.get_style_context().add_class('plugin-actions'); } catch (e) {}
 
-                        // Action container: append buttons directly so they align like other plugins
                         let installButton = new Gtk.Button({
                             label: plugin.scripts.exec.label,
                             sensitive: false
@@ -822,14 +827,11 @@ const Application = new Lang.Class({
 
                         this._setButtonState(installButton, plugin);
                         installButton.connect("clicked", () => this._handleTask(installButton, spinner, plugin));
-
-                        try { installButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                        installButton.set_valign(Gtk.Align.CENTER);
                         box.append(installButton);
 
-                        // If plugin offers a helper to install Wine, add a secondary action beneath
                         if (plugin.scripts.wine) {
                             let wineSpinner = new Gtk.Spinner();
-
                             let wineButton = new Gtk.Button({ label: plugin.scripts.wine.label, sensitive: true });
                             try { wineButton.get_style_context().add_class('suggested-action'); } catch (e) {}
 
@@ -854,7 +856,6 @@ const Application = new Lang.Class({
                                 }, this._executeCommand);
                             });
 
-                            // Disable button if wine is already installed
                             this._executeCommand(null, "command -v wine", (pid, status) => {
                                 if (status === 0) {
                                     try { wineButton.set_sensitive(false); } catch (e) {}
@@ -862,31 +863,31 @@ const Application = new Lang.Class({
                                 }
                             });
 
-                            try { wineButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
-                            try { wineSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                            wineButton.set_valign(Gtk.Align.CENTER);
+                            wineSpinner.set_valign(Gtk.Align.CENTER);
 
                             box.append(wineButton);
                             box.append(wineSpinner);
                         }
 
-                        grid.attach(box, 3, 1, 1, 2);
+                        rowBox.append(box);
                     }
 
                     if (plugin.scripts.show && plugin.scripts.show.command) {
-                        setvisible(plugin, grid);
+                        setvisible(plugin, rowBox);
                     }
                 }
 
                 if (plugin.flatpak) {
                     let spinner = new Gtk.Spinner();
-
-                    grid.attach(spinner, 2, 1, 1, 2);
+                    spinner.set_valign(Gtk.Align.CENTER);
+                    rowBox.append(spinner);
 
                     let box = new Gtk.Box({
                         orientation: Gtk.Orientation.VERTICAL,
                         halign: Gtk.Align.END,
                         valign: Gtk.Align.CENTER,
-                        hexpand: true
+                        spacing: 6
                     });
 
                     let button = new Gtk.Button({
@@ -895,15 +896,14 @@ const Application = new Lang.Class({
                     });
 
                     this._setFlatpakButtonState(button, plugin, spinner);
-
                     button.connect("clicked", () => this._handleFlatpakTask(button, spinner, plugin));
-
+                    button.set_valign(Gtk.Align.CENTER);
                     box.append(button);
 
-                    grid.attach(box, 3, 1, 1, 2);
+                    rowBox.append(box);
                 }
 
-                list.append(grid);
+                list.append(rowBox);
 
                 pluginIndex++;
             }
@@ -919,11 +919,16 @@ const Application = new Lang.Class({
             let searchtext = entry.get_text().toLowerCase();
 
             let filter = (row) => {
-                let items = row.get_children()[0].get_children(),
-                    title = items[4].get_label(),
-                    description = items[2].get_label();
-
-                return (title + description).toLowerCase().indexOf(searchtext) > -1;
+                try {
+                    let rowBox = row.get_child();
+                    let textVBox = rowBox.get_children()[1];
+                    let titleBox = textVBox.get_children()[0];
+                    let title = titleBox.get_children()[0].get_label();
+                    let description = textVBox.get_children()[1].get_label();
+                    return (title + description).toLowerCase().indexOf(searchtext) > -1;
+                } catch (e) {
+                    return false;
+                }
             };
 
             let children = stack.get_children();
