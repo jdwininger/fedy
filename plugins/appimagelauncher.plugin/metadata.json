@@ -1,7 +1,7 @@
 {
   "slug": "appimagelauncher",
   "label": "AppImageLauncher",
-  "description": "AppImageLauncher — integrates AppImages with the system. Installs the system RPM and provides user integration. After installation, run 'appimagelauncher' to open the GUI.",
+  "description": "AppImageLauncher — integrates AppImages with the system. Installs the system RPM and provides user integration.",
   "license": "GPL-3.0",
   "icon": "appimagelauncher",
   "category": "Utilities",
