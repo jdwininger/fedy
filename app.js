@@ -611,6 +611,12 @@ const Application = new Lang.Class({
                 font-size: 11px;
             }
 
+            /* Ensure plugin action area is vertically centered */
+            .view .plugin-actions {
+                padding-top: 4px;
+                padding-bottom: 4px;
+            }
+
             /* Flatpak buttons now use theme-provided action classes
                (suggested-action/destructive-action) so their colors match
                the rest of the UI and respect the current GTK theme. */
@@ -728,6 +734,9 @@ const Application = new Lang.Class({
                 if (!image.get_paintable()) {
                     image.set_from_icon_name("system-run");
                 }
+
+                // Center the plugin icon vertically in its grid cell
+                try { image.set_valign(Gtk.Align.CENTER); } catch (e) {}
 
                 grid.attach(image, 0, 1, 1, 2);
 
