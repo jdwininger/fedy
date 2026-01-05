@@ -744,7 +744,7 @@ const Application = new Lang.Class({
                 // exact spacing (10px) and vertical centering relative to the icon
                 let titleBox = new Gtk.Box({
                     orientation: Gtk.Orientation.HORIZONTAL,
-                    spacing: 6,
+                    spacing: 4,
                     halign: Gtk.Align.START,
                     valign: Gtk.Align.CENTER,
                     hexpand: true
@@ -773,7 +773,7 @@ const Application = new Lang.Class({
                 });
 
                 // Reduce spacing between title and description
-                try { description.set_margin_top(1); description.set_margin_bottom(0); } catch (e) {}
+                try { description.set_margin_top(0); description.set_margin_bottom(0); } catch (e) {}
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
@@ -799,31 +799,25 @@ const Application = new Lang.Class({
 
                         try { box.get_style_context().add_class('plugin-actions'); } catch (e) {}
 
-                        // Action container: keep fixed height and center children vertically
-                        let centerer = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: false, vexpand: false, spacing: 6 });
-
-                        let button = new Gtk.Button({
+                        // Action container: append buttons directly so they align like other plugins
+                        let installButton = new Gtk.Button({
                             label: plugin.scripts.exec.label,
                             sensitive: false
                         });
 
-                        this._setButtonState(button, plugin);
+                        this._setButtonState(installButton, plugin);
+                        installButton.connect("clicked", () => this._handleTask(installButton, spinner, plugin));
 
-                        button.connect("clicked", () => this._handleTask(button, spinner, plugin));
-
-                        // Default install button aligned center vertically
-                        try { button.set_valign(Gtk.Align.CENTER); } catch (e) {}
-                        centerer.append(button);
+                        try { installButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                        box.append(installButton);
 
                         // If plugin offers a helper to install Wine, add a secondary action beneath
                         if (plugin.scripts.wine) {
                             let wineSpinner = new Gtk.Spinner();
-                            try { wineSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
 
                             let wineButton = new Gtk.Button({ label: plugin.scripts.wine.label, sensitive: true });
                             try { wineButton.get_style_context().add_class('suggested-action'); } catch (e) {}
 
-                            // When clicked, run the wine helper command in the plugin directory
                             wineButton.connect("clicked", () => {
                                 wineSpinner.start();
                                 wineButton.set_label('Working...');
@@ -845,7 +839,7 @@ const Application = new Lang.Class({
                                 }, this._executeCommand);
                             });
 
-                            // Disable the button if wine is already installed
+                            // Disable button if wine is already installed
                             this._executeCommand(null, "command -v wine", (pid, status) => {
                                 if (status === 0) {
                                     try { wineButton.set_sensitive(false); } catch (e) {}
@@ -854,12 +848,10 @@ const Application = new Lang.Class({
                             });
 
                             try { wineButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                            try { wineSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
 
-                            centerer.append(wineButton);
-                            centerer.append(wineSpinner);
-
-                            box.append(centerer);
-
+                            box.append(wineButton);
+                            box.append(wineSpinner);
                         }
 
                         grid.attach(box, 3, 1, 1, 2);
