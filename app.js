@@ -1409,8 +1409,28 @@ const Application = new Lang.Class({
         let quickSaveButton = new Gtk.Button({ label: 'Save manifest to Desktop' });
         quickSaveButton.connect('clicked', () => this._quickSaveManifestToDesktop());
 
+        // Quick-save filename preference
+        let fnameBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
+        let fnameLabel = new Gtk.Label({ label: 'Quick save filename:', halign: Gtk.Align.START });
+        fnameLabel.set_xalign(0);
+        let fnameEntry = new Gtk.Entry({ hexpand: true });
+        let currentName = (this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json';
+        fnameEntry.set_text(currentName);
+        fnameEntry.connect('changed', (e) => {
+            try { this._config = this._config || {}; this._config.quick_export_filename = e.get_text(); this._saveConfig(); } catch (err) { /* ignore */ }
+        });
+        fnameBox.append(fnameLabel);
+        fnameBox.append(fnameEntry);
+
         let importButton = new Gtk.Button({ label: 'Import manifest' });
         importButton.connect('clicked', () => this._importManifest());
+
+        vbox.append(infoLabel);
+        vbox.append(currentLabel);
+        vbox.append(exportButton);
+        vbox.append(quickSaveButton);
+        vbox.append(fnameBox);
+        vbox.append(importButton);
 
         vbox.append(infoLabel);
         vbox.append(currentLabel);
@@ -1503,12 +1523,24 @@ const Application = new Lang.Class({
             if (resp === Gtk.ResponseType.CANCEL) return;
 
             if (resp === Gtk.ResponseType.APPLY) {
-                // Save directly to Desktop (fallback to Documents/Home)
+                // Save directly to Desktop (fallback to Documents/Home) using configured filename
                 let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
                 if (!desktop) desktop = GLib.get_home_dir();
-                let filename = desktop + '/fedy-manifest.json';
+                let fname = (this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json';
+                let filename = desktop + '/' + fname;
                 try {
                     this._saveJSON(filename, manifest);
+
+                    // Persist last export directory and filename
+                    try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._config.quick_export_filename = fname; this._saveConfig(); } catch (e) {}
+
+                    // Show a desktop notification if available
+                    try {
+                        const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' });
+                        notification.set_timeout(3000);
+                        notification.show();
+                    } catch (e) { /* ignore notification failures */ }
+
                     let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
                     dialog.add_button('OK', Gtk.ResponseType.OK);
                     dialog.connect('response', () => dialog.destroy());
@@ -1525,13 +1557,20 @@ const Application = new Lang.Class({
 
             // Otherwise, show file chooser to pick a custom location
             fc.connect('response', (chooser, response) => {
-                if (response === Gtk.ResponseType.ACCEPT) {
+                    if (response === Gtk.ResponseType.ACCEPT) {
                     let filename = chooser.get_file().get_path();
                     try {
                         this._saveJSON(filename, manifest);
 
-                        // Persist the last export directory used
-                        try { this._config = this._config || {}; this._config.last_export_dir = GLib.path_get_dirname(filename); this._saveConfig(); } catch (e) {}
+                        // Persist the last export directory and filename used
+                        try { this._config = this._config || {}; this._config.last_export_dir = GLib.path_get_dirname(filename); this._config.quick_export_filename = GLib.path_get_basename(filename); this._saveConfig(); } catch (e) {}
+
+                        // Show a desktop notification if available
+                        try {
+                            const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' });
+                            notification.set_timeout(3000);
+                            notification.show();
+                        } catch (e) { /* ignore notification failures */ }
 
                         let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
                         dialog.add_button('OK', Gtk.ResponseType.OK);
