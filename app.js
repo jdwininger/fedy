@@ -624,6 +624,10 @@ const Application = new Lang.Class({
             /* Force a consistent plugin row minimum height to avoid oversized rows */
             .view .even-row, .view .odd-row {
                 min-height: 56px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+                padding-left: 8px;
+                padding-right: 8px;
             }
 
             /* Flatpak buttons now use theme-provided action classes
@@ -720,10 +724,10 @@ const Application = new Lang.Class({
                 let rowBox = new Gtk.Box({
                     orientation: Gtk.Orientation.HORIZONTAL,
                     spacing: 12,
-                    margin_start: 8,
-                    margin_end: 8,
-                    margin_top: 6,
-                    margin_bottom: 6
+                    margin_start: 0,
+                    margin_end: 0,
+                    margin_top: 0,
+                    margin_bottom: 0
                 });
 
                 rowBox.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
