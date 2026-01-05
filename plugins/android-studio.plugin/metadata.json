@@ -1,0 +1,10 @@
+{
+    "slug": "android-studio",
+    "name": "Android Studio",
+    "description": "The official Integrated Development Environment (IDE) for Android app development.",
+    "license": "Proprietary",
+    "icon": "com.google.AndroidStudio",
+    "category": "Development Tools",
+    "homepage": "https://developer.android.com/studio",
+    "flatpak": "com.google.AndroidStudio"
+}

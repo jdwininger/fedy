@@ -1,0 +1,9 @@
+{
+    "slug": "mixxx",
+    "name": "Mixxx",
+    "description": "Free DJ software that gives you everything you need to perform live mixes.",
+    "license": "GPL-2.0",
+    "icon": "mixxx",
+    "category": "Apps",
+    "homepage": "https://mixxx.org/"
+}

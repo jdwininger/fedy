@@ -1,0 +1,9 @@
+{
+    "slug": "lm-studio",
+    "name": "LM Studio",
+    "description": "Discover, download, and run local LLMs.",
+    "license": "Proprietary",
+    "icon": "lm-studio",
+    "category": "Apps",
+    "homepage": "https://lmstudio.ai/"
+}

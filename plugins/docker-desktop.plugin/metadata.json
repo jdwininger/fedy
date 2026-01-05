@@ -1,0 +1,9 @@
+{
+    "slug": "docker-desktop",
+    "name": "Docker Desktop",
+    "description": "A one-click-install application for building and sharing containerized applications and microservices.",
+    "license": "Proprietary",
+    "icon": "docker",
+    "category": "Development Tools",
+    "homepage": "https://www.docker.com/products/docker-desktop/"
+}

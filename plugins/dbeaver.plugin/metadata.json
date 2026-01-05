@@ -1,0 +1,9 @@
+{
+    "slug": "dbeaver",
+    "name": "DBeaver",
+    "description": "Free multi-platform database tool for developers, database administrators, analysts and all people who need to work with databases.",
+    "license": "Apache-2.0",
+    "icon": "dbeaver",
+    "category": "Development Tools",
+    "homepage": "https://dbeaver.io/"
+}
