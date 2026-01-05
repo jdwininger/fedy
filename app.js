@@ -615,6 +615,13 @@ const Application = new Lang.Class({
             .view .plugin-actions {
                 padding-top: 4px;
                 padding-bottom: 4px;
+                /* Use flex alignment to center children vertically */
+                display: flex;
+                align-items: center;
+            }
+            .view .plugin-actions button {
+                margin-top: 0;
+                margin-bottom: 0;
             }
 
             /* Flatpak buttons now use theme-provided action classes
