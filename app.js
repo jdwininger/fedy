@@ -613,11 +613,8 @@ const Application = new Lang.Class({
 
             /* Ensure plugin action area is vertically centered */
             .view .plugin-actions {
-                padding-top: 4px;
-                padding-bottom: 4px;
-                /* Use flex alignment to center children vertically */
-                display: flex;
-                align-items: center;
+                padding-top: 0;
+                padding-bottom: 0;
             }
             .view .plugin-actions button {
                 margin-top: 0;
@@ -815,6 +812,7 @@ const Application = new Lang.Class({
                             orientation: Gtk.Orientation.VERTICAL,
                             halign: Gtk.Align.END,
                             valign: Gtk.Align.CENTER,
+                            vexpand: false,
                             spacing: 6
                         });
 
@@ -887,6 +885,7 @@ const Application = new Lang.Class({
                         orientation: Gtk.Orientation.VERTICAL,
                         halign: Gtk.Align.END,
                         valign: Gtk.Align.CENTER,
+                        vexpand: false,
                         spacing: 6
                     });
 
