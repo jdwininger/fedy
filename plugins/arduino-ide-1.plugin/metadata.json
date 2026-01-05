@@ -1,0 +1,13 @@
+{
+    "slug": "arduino-ide-1",
+    "label": "Arduino IDE (1.x)",
+    "description": "Legacy Arduino IDE (1.8.x series).",
+    "license": "GPL-2.0",
+    "icon": "arduino",
+    "category": "Development Tools",
+    "homepage": "https://www.arduino.cc/",
+    "scripts": {
+        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+    }
+}

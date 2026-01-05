@@ -1,0 +1,14 @@
+{
+    "slug": "arduino-ide-2",
+    "label": "Arduino IDE 2",
+    "description": "The new Arduino IDE 2 (modern interface).",
+    "license": "Proprietary",
+    "icon": "arduino",
+    "category": "Development Tools",
+    "homepage": "https://www.arduino.cc/",
+    "flatpak": "cc.arduino.IDE2",
+    "scripts": {
+        "exec": { "label": "Install", "command": "install.sh" },
+        "undo": { "label": "Remove", "command": "uninstall.sh" }
+    }
+}
