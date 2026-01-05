@@ -1,68 +1,32 @@
 #!/bin/bash
 set -e
 
-INSTALL_DIR="$HOME/Applications/AppImageLauncher"
-ICON_DEST="$HOME/.local/share/icons/hicolor/256x256/apps/appimagelauncher.png"
-DESKTOP_FILE="$HOME/.local/share/applications/appimagelauncher-lite.desktop"
+# Install AppImageLauncher system RPM (user provided suggested RPM URL)
+RPM_URL="https://github.com/TheAssassin/AppImageLauncher/releases/download/v3.0.0-beta-3/appimagelauncher_3.0.0-beta-2-gha287.96cb937_x86_64.rpm"
+TMPDIR=$(mktemp -d)
+RPMFILE="$TMPDIR/$(basename "$RPM_URL")"
 
-mkdir -p "$INSTALL_DIR"
-mkdir -p "$(dirname "$ICON_DEST")"
-mkdir -p "$(dirname "$DESKTOP_FILE")"
+echo "Downloading AppImageLauncher RPM..."
+wget --content-disposition -O "$RPMFILE" "$RPM_URL"
 
-# Download the Lite AppImage (preserve upstream filename)
-echo "Downloading AppImageLauncher Lite..."
-wget --content-disposition -P "$INSTALL_DIR" "https://github.com/TheAssassin/AppImageLauncher/releases/latest/download/appimagelauncher-lite-x86_64.AppImage"
-
-# Find the downloaded AppImage
-shopt -s nullglob
-files=("$INSTALL_DIR"/appimagelauncher-lite*.AppImage "$INSTALL_DIR"/*.AppImage)
-if (( ${#files[@]} )); then
-    APPIMAGE="${files[0]}"
+# Install RPM
+echo "Installing AppImageLauncher (requires root)..."
+if command -v dnf >/dev/null 2>&1; then
+    dnf install -y "$RPMFILE"
+elif command -v yum >/dev/null 2>&1; then
+    yum install -y "$RPMFILE"
 else
-    echo "Failed to find downloaded AppImage" >&2
+    echo "No package manager found (dnf/yum). Please install the RPM manually: $RPMFILE" >&2
     exit 1
 fi
-chmod +x "$APPIMAGE"
 
-# Run the AppImage with the "install" action to integrate into the system
-# This will typically register AppImageLauncher and integrate AppImages
-echo "Running AppImageLauncher Lite installer (this may prompt for confirmation)..."
-"$APPIMAGE" install || true
+rm -rf "$TMPDIR"
 
-# Try to extract an icon from the AppImage (fallback to a shipped icon)
-pushd "$(dirname "$APPIMAGE")" > /dev/null
-"$APPIMAGE" --appimage-extract >/dev/null 2>&1 || true
-if [ -f "squashfs-root/.DirIcon" ]; then
-    mv "squashfs-root/.DirIcon" "$ICON_DEST"
-    rm -rf squashfs-root
+# Inform the user they may need to run the GUI once as their user to finalize integration
+if [ -n "$SUDO_USER" ]; then
+    echo "AppImageLauncher installed. Please ask the user '$SUDO_USER' to run 'appimagelauncher' once to finish integration (or run it yourself as your user)."
 else
-    # If our repo has a downloaded icon, use that; otherwise ignore
-    cp "$(dirname "${BASH_SOURCE[0]}")/appimagelauncher.png" "$ICON_DEST" 2>/dev/null || true
-fi
-popd > /dev/null
-
-# Create a simple desktop entry so users can launch the AppImage directly if they want
-cat > "$DESKTOP_FILE" <<EOF
-[Desktop Entry]
-Name=AppImageLauncher (Lite)
-Comment=Manage AppImages
-Exec="$APPIMAGE" %U
-Icon=$ICON_DEST
-Type=Application
-Categories=Utility;
-Terminal=false
-EOF
-
-# Keep the latest 2 copies by default (configurable via KEEP)
-KEEP=${KEEP:-2}
-mapfile -t appimages < <(ls -1t "$INSTALL_DIR"/*.AppImage 2>/dev/null || true)
-if (( ${#appimages[@]} > KEEP )); then
-    for ((i=KEEP;i<${#appimages[@]};i++)); do
-        rm -f "${appimages[$i]}"
-    done
-    echo "Removed $(( ${#appimages[@]} - KEEP )) old AppImage(s) from $INSTALL_DIR"
+    echo "AppImageLauncher installed. Please run 'appimagelauncher' once to finish integration."
 fi
 
-# Inform the user
-printf "AppImageLauncher Lite installed (AppImage: %s)\n" "$APPIMAGE"
 exit 0

@@ -1,24 +1,24 @@
 #!/bin/bash
 set -e
 
-# First try to remove integration via a system binary, if available
-if command -v appimagelauncher-lite >/dev/null 2>&1; then
-    echo "Removing AppImageLauncher integration via installed binary..."
-    appimagelauncher-lite remove || true
+# Remove system RPM if present
+if rpm --quiet --query appimagelauncher >/dev/null 2>&1; then
+    if command -v dnf >/dev/null 2>&1; then
+        dnf remove -y appimagelauncher || true
+    elif command -v yum >/dev/null 2>&1; then
+        yum remove -y appimagelauncher || true
+    fi
 fi
 
-# Next try to run any existing AppImage with 'remove'
+# Also remove any user AppImage copies and desktop entries that may exist
 shopt -s nullglob
-files=("$HOME/Applications/AppImageLauncher"/appimagelauncher-lite*.AppImage "$HOME/Applications/AppImageLauncher"/*.AppImage)
+files=("$HOME/Applications/AppImageLauncher"/appimagelauncher*.AppImage "$HOME/Applications/AppImageLauncher"/*.AppImage)
 for f in "${files[@]}"; do
-    echo "Running $f remove..."
-    "$f" remove || true
     rm -f "$f"
 done
 
-# Remove desktop entry and icons created by installer
 rm -f "$HOME/.local/share/applications/appimagelauncher-lite.desktop"
 rm -f "$HOME/.local/share/icons/hicolor/256x256/apps/appimagelauncher.png"
 
-echo "AppImageLauncher Lite removed from user account." 
+echo "AppImageLauncher removed." 
 exit 0
