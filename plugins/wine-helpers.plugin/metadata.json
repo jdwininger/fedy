@@ -3,7 +3,7 @@
 	"label": "Wine Helpers",
 	"description": "Helper tasks for Wine (install DXVK into a WINEPREFIX).",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Utilities",
 	"scripts": {
 		"exec": { "label": "Install DXVK (choose prefix)", "command": "bash install-dxvk.sh" },
 		"status": { "command": "bash status.sh" }

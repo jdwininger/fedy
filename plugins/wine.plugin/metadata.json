@@ -3,7 +3,7 @@
 	"label": "Wine",
 	"description": "Wine and Winetricks - Windows compatibility layer and helper tools.",
 	"license": "Open Source",
-	"category": "Applications",
+	"category": "Utilities",
 	"scripts": {
 		"exec": { "label": "Install", "command": "run-as-root -s install.sh" },
 		"undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" },
