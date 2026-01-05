@@ -705,6 +705,22 @@ const Application = new Lang.Class({
             left.connect('clicked', () => { setIndex(currentIndex - 1); });
             right.connect('clicked', () => { setIndex(currentIndex + 1); });
 
+            // Keep arrows in sync with programmatic changes to the stack's visible page
+            try {
+                stack.connect('notify::visible-child', () => {
+                    try {
+                        let visible = stack.get_visible_child();
+
+                        for (let i = 0; i < categories.length; i++) {
+                            if (visible === this._panes[categories[i]]) {
+                                currentIndex = i;
+                                break;
+                            }
+                        }
+                    } catch (e) {}
+                });
+            } catch (e) {}
+
             // Expose navBox so we can add it to the headerbar later instead of the raw switcher
             switcher._navBox = navBox;
         }
