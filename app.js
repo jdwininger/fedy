@@ -630,6 +630,20 @@ const Application = new Lang.Class({
                 padding-right: 8px;
             }
 
+            /* Header switcher compact layout (limit real-estate) */
+            .header-switcher {
+                max-width: 360px;
+                min-width: 120px;
+                font-size: 12px;
+                padding-top: 2px;
+                padding-bottom: 2px;
+            }
+
+            .header-switcher > * {
+                padding-left: 6px;
+                padding-right: 6px;
+            }
+
             /* Flatpak buttons now use theme-provided action classes
                (suggested-action/destructive-action) so their colors match
                the rest of the UI and respect the current GTK theme. */
@@ -661,6 +675,38 @@ const Application = new Lang.Class({
         } else {
             switcher = new Gtk.StackSwitcher({ stack: stack });
             switcher.get_style_context().add_class('header-switcher');
+
+            // Create small navigation controls to step through stack pages when
+            // the header switcher is constrained in width. This avoids taking
+            // excessive real-estate and gives users arrows to move between tabs.
+            let navBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 });
+
+            let left = new Gtk.Button({ halign: Gtk.Align.START });
+            let leftIcon = new Gtk.Image();
+            try { leftIcon.set_from_icon_name('go-previous-symbolic'); } catch (e) {}
+            left.set_child(leftIcon);
+
+            let right = new Gtk.Button({ halign: Gtk.Align.END });
+            let rightIcon = new Gtk.Image();
+            try { rightIcon.set_from_icon_name('go-next-symbolic'); } catch (e) {}
+            right.set_child(rightIcon);
+
+            navBox.append(left);
+            navBox.append(switcher);
+            navBox.append(right);
+
+            // Track the index so arrow buttons can change visible page
+            let currentIndex = 0;
+            function setIndex(i) {
+                currentIndex = (i + categories.length) % categories.length;
+                try { stack.set_visible_child_name(categories[currentIndex]); } catch (e) {}
+            }
+
+            left.connect('clicked', () => { setIndex(currentIndex - 1); });
+            right.connect('clicked', () => { setIndex(currentIndex + 1); });
+
+            // Expose navBox so we can add it to the headerbar later instead of the raw switcher
+            switcher._navBox = navBox;
         }
 
         let sort = (row1, row2) => {
@@ -995,14 +1041,18 @@ const Application = new Lang.Class({
                     }
             } else {
                 // switcher is a widget (Gtk.StackSwitcher)
+                // If we created a navigation box for compact header navigation,
+                // prefer adding the box which contains arrows + switcher.
+                let widgetToAdd = (switcher._navBox ? switcher._navBox : switcher);
+
                 if (typeof this._headerbar.set_title_widget === 'function') {
-                    this._headerbar.set_title_widget(switcher);
+                    this._headerbar.set_title_widget(widgetToAdd);
                 } else if (typeof this._headerbar.prepend === 'function') {
-                    this._headerbar.prepend(switcher);
+                    this._headerbar.prepend(widgetToAdd);
                 } else if (typeof this._headerbar.pack_start === 'function') {
-                    this._headerbar.pack_start(switcher);
+                    this._headerbar.pack_start(widgetToAdd);
                 } else if (typeof this._headerbar.append === 'function') {
-                    this._headerbar.append(switcher);
+                    this._headerbar.append(widgetToAdd);
                 }
             }
         } catch (e) {
