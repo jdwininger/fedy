@@ -1712,11 +1712,9 @@ const Application = new Lang.Class({
 
             if (resp === Gtk.ResponseType.CANCEL) return;
 
-            // Build tasks list (match manifest entries to available plugins)
-            let tasks = [];
-            let skipped = [];
+            // Capture parent window early so callbacks can reference it even if we return
+            let parentWindow = this._window;
 
-            for (let e of entries) {
                 let found = null;
 
                 for (let cat of Object.keys(this._plugins)) {
