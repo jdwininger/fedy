@@ -2,6 +2,7 @@
   "slug": "appimagelauncher",
   "label": "AppImageLauncher",
   "description": "AppImageLauncher — integrates AppImages with the system. Installs the system RPM and provides user integration.",
+  "hint": "System-level service (installs system RPM); this plugin has no GUI.",
   "license": "GPL-3.0",
   "icon": "appimagelauncher",
   "category": "Utilities",

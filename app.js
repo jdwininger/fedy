@@ -488,6 +488,9 @@ const Application = new Lang.Class({
 
             button.set_label(action.label);
 
+            // If plugin provides a hint, use it as the button tooltip (useful for system-level services)
+            try { if (plugin.hint) { button.set_tooltip_text(plugin.hint); } else { button.set_tooltip_text(null); } } catch (e) {}
+
             if (status === 0 && action.command) {
                 try { button.get_style_context().add_class("destructive-action"); } catch (e) {}
             } else if (action.command) {
