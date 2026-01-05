@@ -22,28 +22,6 @@ fi
 
 rm -rf "$TMPDIR"
 
-# Attempt to run the installed app to finalize integration. This may not
-# show a GUI if a graphical session is not available for the target user,
-# but running the binary is usually enough to complete registration.
-if command -v appimagelauncher >/dev/null 2>&1; then
-    if [ -n "$SUDO_USER" ]; then
-        echo "Launching AppImageLauncher as user '$SUDO_USER' to finalize integration..."
-        # Try runuser first (runs command as a different user); fall back to sudo if needed
-        if command -v runuser >/dev/null 2>&1; then
-            runuser -l "$SUDO_USER" -c "nohup setsid appimagelauncher >/dev/null 2>&1 &" || true
-        else
-            sudo -u "$SUDO_USER" bash -c "nohup setsid appimagelauncher >/dev/null 2>&1 &" || true
-        fi
-    else
-        echo "Launching AppImageLauncher to finalize integration..."
-        nohup setsid appimagelauncher >/dev/null 2>&1 & || true
-    fi
-else
-    if [ -n "$SUDO_USER" ]; then
-        echo "AppImageLauncher installed. Please ask the user '$SUDO_USER' to run 'appimagelauncher' once to finish integration."
-    else
-        echo "AppImageLauncher installed. Please run 'appimagelauncher' once to finish integration."
-    fi
-fi
+echo "AppImageLauncher installed."
 
 exit 0
