@@ -1,9 +1,13 @@
 {
     "slug": "docker-desktop",
-    "name": "Docker Desktop",
+    "label": "Docker Desktop",
     "description": "A one-click-install application for building and sharing containerized applications and microservices.",
     "license": "Proprietary",
     "icon": "docker",
     "category": "Development Tools",
-    "homepage": "https://www.docker.com/products/docker-desktop/"
+    "homepage": "https://www.docker.com/products/docker-desktop/",
+    "scripts": {
+        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+    }
 }

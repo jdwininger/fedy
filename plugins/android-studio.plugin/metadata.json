@@ -1,6 +1,6 @@
 {
     "slug": "android-studio",
-    "name": "Android Studio",
+    "label": "Android Studio",
     "description": "The official Integrated Development Environment (IDE) for Android app development.",
     "license": "Proprietary",
     "icon": "com.google.AndroidStudio",

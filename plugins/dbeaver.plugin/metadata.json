@@ -1,9 +1,13 @@
 {
     "slug": "dbeaver",
-    "name": "DBeaver",
+    "label": "DBeaver",
     "description": "Free multi-platform database tool for developers, database administrators, analysts and all people who need to work with databases.",
     "license": "Apache-2.0",
     "icon": "dbeaver",
     "category": "Development Tools",
-    "homepage": "https://dbeaver.io/"
+    "homepage": "https://dbeaver.io/",
+    "scripts": {
+        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+    }
 }

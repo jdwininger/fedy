@@ -1,9 +1,13 @@
 {
     "slug": "mixxx",
-    "name": "Mixxx",
+    "label": "Mixxx",
     "description": "Free DJ software that gives you everything you need to perform live mixes.",
     "license": "GPL-2.0",
     "icon": "mixxx",
     "category": "Apps",
-    "homepage": "https://mixxx.org/"
+    "homepage": "https://mixxx.org/",
+    "scripts": {
+        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+    }
 }

@@ -1,9 +1,13 @@
 {
     "slug": "lm-studio",
-    "name": "LM Studio",
+    "label": "LM Studio",
     "description": "Discover, download, and run local LLMs.",
     "license": "Proprietary",
     "icon": "lm-studio",
     "category": "Apps",
-    "homepage": "https://lmstudio.ai/"
+    "homepage": "https://lmstudio.ai/",
+    "scripts": {
+        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+    }
 }
