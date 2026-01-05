@@ -6,7 +6,7 @@
     "icon": "lm-studio",
     "category": "Applications",
     "homepage": "https://lmstudio.ai/",
-    "status": { "command": "bash -lc 'test -f \"$HOME/Applications/LM Studio/lm-studio.AppImage\"'" },
+    "status": { "command": "bash -lc 'shopt -s nullglob; files=(\"$HOME/Applications/LM Studio/lm-studio"*.AppImage); (( ${#files[@]} )) && exit 0 || exit 1'" },
     "scripts": {
         "exec": { "label": "Install", "command": "install.sh" },
         "undo": { "label": "Remove", "command": "uninstall.sh" }

@@ -6,7 +6,7 @@
     "icon": "arduino",
     "category": "Development Tools",
     "homepage": "https://www.arduino.cc/",
-    "status": { "command": "bash -lc 'test -f \"$HOME/Applications/ArduinoIDE2/arduino-ide.AppImage\"'" },
+    "status": { "command": "bash -lc 'shopt -s nullglob; files=(\"$HOME/Applications/ArduinoIDE2/arduino-ide"*.AppImage); (( ${#files[@]} )) && exit 0 || exit 1'" },
     "scripts": {
         "exec": { "label": "Install", "command": "install.sh" },
         "undo": { "label": "Remove", "command": "uninstall.sh" }
