@@ -4,10 +4,10 @@
     "description": "Discover, download, and run local LLMs.",
     "license": "Proprietary",
     "icon": "lm-studio",
-    "category": "Apps",
+    "category": "Applications",
     "homepage": "https://lmstudio.ai/",
     "scripts": {
-        "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
-        "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
+        "exec": { "label": "Install", "command": "install.sh" },
+        "undo": { "label": "Remove", "command": "uninstall.sh" }
     }
 }

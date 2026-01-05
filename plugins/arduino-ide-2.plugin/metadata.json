@@ -6,7 +6,6 @@
     "icon": "arduino",
     "category": "Development Tools",
     "homepage": "https://www.arduino.cc/",
-    "flatpak": "cc.arduino.IDE2",
     "scripts": {
         "exec": { "label": "Install", "command": "install.sh" },
         "undo": { "label": "Remove", "command": "uninstall.sh" }
