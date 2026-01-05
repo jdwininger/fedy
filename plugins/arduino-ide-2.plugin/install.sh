@@ -3,7 +3,6 @@ set -e
 
 # Install Arduino IDE 2 AppImage into user's Applications folder
 INSTALL_DIR="$HOME/Applications/ArduinoIDE2"
-APPIMAGE="$INSTALL_DIR/arduino-ide.AppImage"
 ICON_DEST="$HOME/.local/share/icons/hicolor/256x256/apps/arduino-ide-2.png"
 DESKTOP_FILE="$HOME/.local/share/applications/arduino-ide-2.desktop"
 
@@ -13,8 +12,19 @@ mkdir -p "$(dirname "$DESKTOP_FILE")"
 
 APPIMAGE_URL="https://github.com/arduino/arduino-ide/releases/latest/download/arduino-ide_Linux_64bit.AppImage"
 
+# Download and preserve upstream filename
 echo "Downloading Arduino IDE 2..."
-wget -O "$APPIMAGE" "$APPIMAGE_URL"
+wget --content-disposition -P "$INSTALL_DIR" "$APPIMAGE_URL"
+
+# Find the downloaded AppImage (accept versioned filenames)
+shopt -s nullglob
+files=("$INSTALL_DIR"/arduino-ide*.AppImage "$INSTALL_DIR"/*.AppImage)
+if (( ${#files[@]} )); then
+    APPIMAGE="${files[0]}"
+else
+    echo "Failed to find downloaded Arduino IDE 2 AppImage" >&2
+    exit 1
+fi
 chmod +x "$APPIMAGE"
 
 # Try to extract an icon from the AppImage; fallback to bundled svg

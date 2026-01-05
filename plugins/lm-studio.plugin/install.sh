@@ -3,7 +3,6 @@ set -e
 
 # Install LM Studio AppImage into the user's Applications folder
 INSTALL_DIR="$HOME/Applications/LM Studio"
-APPIMAGE="$INSTALL_DIR/lm-studio.AppImage"
 ICON_DEST="$HOME/.local/share/icons/hicolor/256x256/apps/lm-studio.png"
 DESKTOP_FILE="$HOME/.local/share/applications/lm-studio.desktop"
 
@@ -11,8 +10,19 @@ mkdir -p "$INSTALL_DIR"
 mkdir -p "$(dirname "$ICON_DEST")"
 mkdir -p "$(dirname "$DESKTOP_FILE")"
 
+# Download the AppImage and preserve the upstream filename if present
 echo "Downloading LM Studio..."
-wget -O "$APPIMAGE" "https://lmstudio.ai/download/latest/linux/x64"
+wget --content-disposition -P "$INSTALL_DIR" "https://lmstudio.ai/download/latest/linux/x64"
+
+# Find the downloaded AppImage (accept versioned filenames)
+shopt -s nullglob
+files=("$INSTALL_DIR"/LM-Studio*.AppImage "$INSTALL_DIR"/lm-studio*.AppImage "$INSTALL_DIR"/*.AppImage)
+if (( ${#files[@]} )); then
+    APPIMAGE="${files[0]}"
+else
+    echo "Failed to find downloaded LM Studio AppImage" >&2
+    exit 1
+fi
 chmod +x "$APPIMAGE"
 
 # Try to extract an icon from the AppImage; fall back to the bundled repo icon
