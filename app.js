@@ -937,6 +937,48 @@ const Application = new Lang.Class({
                             box.append(wineSpinner);
                         }
 
+                        // Secondary action: Install JDK (OpenJDK-devel)
+                        if (plugin.scripts.jdk) {
+                            let jdkSpinner = new Gtk.Spinner();
+                            let jdkButton = new Gtk.Button({ label: plugin.scripts.jdk.label, sensitive: true });
+                            try { jdkButton.get_style_context().add_class('suggested-action'); } catch (e) {}
+
+                            jdkButton.connect("clicked", () => {
+                                jdkSpinner.start();
+                                jdkButton.set_label('Working...');
+                                jdkButton.set_sensitive(false);
+
+                                this._runPluginCommand(plugin, plugin.scripts.jdk.command, (pid, status, error) => {
+                                    jdkSpinner.stop();
+                                    if (status === 0) {
+                                        jdkButton.set_label('Finished!');
+                                    } else {
+                                        jdkButton.set_label('Error!');
+                                    }
+
+                                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                                        try { jdkButton.set_label(plugin.scripts.jdk.label); } catch (e) {}
+                                        try { jdkButton.set_sensitive(true); } catch (e) {}
+                                        return false;
+                                    });
+                                }, this._executeCommand);
+                            });
+
+                            // Disable button if javac (JDK) is already installed
+                            this._executeCommand(null, "command -v javac", (pid, status) => {
+                                if (status === 0) {
+                                    try { jdkButton.set_sensitive(false); } catch (e) {}
+                                    try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                }
+                            });
+
+                            try { jdkButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                            try { jdkSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
+
+                            box.append(jdkButton);
+                            box.append(jdkSpinner);
+                        }
+
                         rowBox.append(box);
                     }
 

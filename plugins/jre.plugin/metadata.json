@@ -8,8 +8,12 @@
 	"scripts": {
 		"status": { "command": "bash status.sh" },
 		"exec": {
-			"label": "Install",
+			"label": "Install Runtime",
 			"command": "run-as-root -s install.sh"
+		},
+		"jdk": {
+			"label": "Install JDK",
+			"command": "run-as-root -s install-jdk.sh"
 		},
 		"undo": {
 			"label": "Remove",
