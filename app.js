@@ -1450,9 +1450,22 @@ const Application = new Lang.Class({
             // ignore if not available
         }
 
-        fc.connect('response', (chooser, response) => {
-            if (response === Gtk.ResponseType.ACCEPT) {
-                let filename = chooser.get_file().get_path();
+        // Provide a quick option dialog: Cancel | Save to Desktop | Choose location...
+        let opt = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Where would you like to save the manifest?' });
+        opt.add_button('Cancel', Gtk.ResponseType.CANCEL);
+        opt.add_button('Save to Desktop', Gtk.ResponseType.APPLY);
+        opt.add_button('Choose location...', Gtk.ResponseType.OK);
+
+        opt.connect('response', (dlg, resp) => {
+            dlg.destroy();
+
+            if (resp === Gtk.ResponseType.CANCEL) return;
+
+            if (resp === Gtk.ResponseType.APPLY) {
+                // Save directly to Desktop (fallback to Documents/Home)
+                let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
+                if (!desktop) desktop = GLib.get_home_dir();
+                let filename = desktop + '/fedy-manifest.json';
                 try {
                     this._saveJSON(filename, manifest);
                     let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
@@ -1465,11 +1478,34 @@ const Application = new Lang.Class({
                     dialog.connect('response', () => dialog.destroy());
                     dialog.show();
                 }
+
+                return;
             }
-            chooser.destroy();
+
+            // Otherwise, show file chooser to pick a custom location
+            fc.connect('response', (chooser, response) => {
+                if (response === Gtk.ResponseType.ACCEPT) {
+                    let filename = chooser.get_file().get_path();
+                    try {
+                        this._saveJSON(filename, manifest);
+                        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                        dialog.add_button('OK', Gtk.ResponseType.OK);
+                        dialog.connect('response', () => dialog.destroy());
+                        dialog.show();
+                    } catch (e) {
+                        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                        dialog.add_button('OK', Gtk.ResponseType.OK);
+                        dialog.connect('response', () => dialog.destroy());
+                        dialog.show();
+                    }
+                }
+                chooser.destroy();
+            });
+
+            fc.show();
         });
 
-        fc.show();
+        opt.show();
     },
 
     _installPluginsFromManifest: function(entries) {
