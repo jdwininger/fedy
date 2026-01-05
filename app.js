@@ -8,6 +8,9 @@ imports.gi.versions.Gtk = '4.0';
 imports.gi.versions.Gdk = '4.0';
 imports.gi.versions.GdkPixbuf = '2.0';
 
+// Try to load libadwaita (Adw) if available
+try { imports.gi.versions.Adw = '1.0'; } catch (e) { /* ignore if not present */ }
+
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
@@ -15,6 +18,8 @@ const Gdk = imports.gi.Gdk;
 const GdkPixbuf = imports.gi.GdkPixbuf;
 const Notify = imports.gi.Notify;
 const Pango = imports.gi.Pango;
+let Adw = null;
+try { Adw = imports.gi.Adw; } catch (e) { Adw = null; }
 const Lang = imports.lang;
 const System = imports.system;
 const FedyCli = imports.cli.FedyCli;
@@ -749,11 +754,16 @@ const Application = new Lang.Class({
                 titleBox.append(license);
 
                 grid.attach(titleBox, 1, 1, 1, 1);
+                try { titleBox.set_margin_bottom(0); } catch (e) {}
 
                 let description = new Gtk.Label({
                     label: plugin.description,
-                    halign: Gtk.Align.START
+                    halign: Gtk.Align.START,
+                    margin_top: 0
                 });
+
+                // Reduce spacing between title and description
+                try { description.set_margin_top(2); } catch (e) {}
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
@@ -772,8 +782,15 @@ const Application = new Lang.Class({
                             orientation: Gtk.Orientation.VERTICAL,
                             halign: Gtk.Align.END,
                             valign: Gtk.Align.CENTER,
-                            hexpand: true
+                            hexpand: true,
+                            vexpand: true,
+                            spacing: 6
                         });
+
+                        try { box.get_style_context().add_class('plugin-actions'); } catch (e) {}
+
+                        // Action container: keep fixed height and center children vertically
+                        let centerer = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, hexpand: false, vexpand: false, spacing: 6 });
 
                         let button = new Gtk.Button({
                             label: plugin.scripts.exec.label,
@@ -784,7 +801,56 @@ const Application = new Lang.Class({
 
                         button.connect("clicked", () => this._handleTask(button, spinner, plugin));
 
-                        box.append(button);
+                        // Default install button aligned center vertically
+                        try { button.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                        centerer.append(button);
+
+                        // If plugin offers a helper to install Wine, add a secondary action beneath
+                        if (plugin.scripts.wine) {
+                            let wineSpinner = new Gtk.Spinner();
+                            try { wineSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
+
+                            let wineButton = new Gtk.Button({ label: plugin.scripts.wine.label, sensitive: true });
+                            try { wineButton.get_style_context().add_class('suggested-action'); } catch (e) {}
+
+                            // When clicked, run the wine helper command in the plugin directory
+                            wineButton.connect("clicked", () => {
+                                wineSpinner.start();
+                                wineButton.set_label('Working...');
+                                wineButton.set_sensitive(false);
+
+                                this._runPluginCommand(plugin, plugin.scripts.wine.command, (pid, status, error) => {
+                                    wineSpinner.stop();
+                                    if (status === 0) {
+                                        wineButton.set_label('Finished!');
+                                    } else {
+                                        wineButton.set_label('Error!');
+                                    }
+
+                                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                                        try { wineButton.set_label(plugin.scripts.wine.label); } catch (e) {}
+                                        try { wineButton.set_sensitive(true); } catch (e) {}
+                                        return false;
+                                    });
+                                }, this._executeCommand);
+                            });
+
+                            // Disable the button if wine is already installed
+                            this._executeCommand(null, "command -v wine", (pid, status) => {
+                                if (status === 0) {
+                                    try { wineButton.set_sensitive(false); } catch (e) {}
+                                    try { wineButton.set_label('Wine installed'); } catch (e) {}
+                                }
+                            });
+
+                            try { wineButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+
+                            centerer.append(wineButton);
+                            centerer.append(wineSpinner);
+
+                            box.append(centerer);
+
+                        }
 
                         grid.attach(box, 3, 1, 1, 2);
                     }
@@ -926,6 +992,180 @@ const Application = new Lang.Class({
         this._window.set_child(vbox);
     },
 
+    _saveJSON: function(path, obj) {
+        try {
+            let dir = GLib.path_get_dirname(path);
+            try { GLib.mkdir_with_parents(dir, 0o755); } catch (e) { /* ignore */ }
+
+            let file = Gio.File.new_for_path(path);
+            file.replace_contents(JSON.stringify(obj, null, 2), null, false, Gio.FileCreateFlags.NONE, null);
+        } catch (e) {
+            print("Error saving file " + path + " : " + e.message);
+        }
+    },
+
+    _applyTheme: function() {
+        let theme = (this._config && this._config.theme) ? this._config.theme : "system";
+        print('Applying theme, config requested: ' + theme);
+
+        // If configured to follow system, try to read GNOME's color-scheme
+        if (theme === "system") {
+            try {
+                if (!this._gnomeSettings) this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+                let cs = (this._gnomeSettings && this._gnomeSettings.get_string) ? this._gnomeSettings.get_string('color-scheme') : null;
+                if (cs === 'prefer-dark') theme = 'dark'; else theme = 'light';
+            } catch (e) {
+                // If GNOME schema not available, default to light
+                theme = 'light';
+            }
+        }
+
+        try {
+            // Prefer libadwaita/style-manager if available (GTK4 recommended)
+            if (Adw && Adw.StyleManager && Adw.StyleManager.get_default) {
+                try {
+                    print('Theme: using Adw.StyleManager to apply ' + theme);
+                    let sm = Adw.StyleManager.get_default();
+                    if (theme === 'dark') {
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFER_DARK); } catch (e) { /* ignore if constant missing */ }
+                    } else if (theme === 'light') {
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFERENCE_LIGHT); } catch (e) { /* ignore */ }
+                    } else {
+                        // system - let StyleManager follow system
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFERRED_LIGHT || Adw.ColorScheme.PREFERENCE_LIGHT); } catch (e) { /* ignore */ }
+                    }
+                } catch (e) { print('Adw.StyleManager.apply failed: ' + e.message); }
+            }
+
+            // Fall back to Gtk.Settings
+            if (typeof Gtk.Settings !== "undefined" && Gtk.Settings.get_default) {
+                let settings = Gtk.Settings.get_default();
+
+                if (settings) {
+                    if (theme === "dark") {
+                        settings.set_property("gtk-application-prefer-dark-theme", true);
+                    } else if (theme === "light") {
+                        settings.set_property("gtk-application-prefer-dark-theme", false);
+                    } else {
+                        // fallback
+                        settings.set_property("gtk-application-prefer-dark-theme", false);
+                    }
+                }
+            }
+        } catch (e) {
+            // Non-fatal
+        }
+
+        // Instead of destroying the main window (which can leave the UI
+        // in an inconsistent/unresponsive state), walk the widget tree and
+        // request redraws so GTK can re-evaluate styles. Also toggle both
+        // 'dark' and 'light' style classes to ensure explicit overrides and
+        // load/unload a lightweight CSS provider to force light styling when
+        // requested (works across themes that may otherwise stay dark).
+        try {
+            if (this._window) {
+                function walkAndUpdate(widget, addDark, addLight) {
+                    try { if (widget && typeof widget.queue_draw === 'function') widget.queue_draw(); } catch (e) {}
+
+                    try {
+                        if (widget && typeof widget.get_style_context === 'function') {
+                            let ctx = widget.get_style_context();
+
+                            // Explicitly set/clear both classes so we don't leave
+                            // stale classes that keep the dark styling active.
+                            if (addDark) { try { ctx.add_class('dark'); } catch (e) {} } else { try { ctx.remove_class('dark'); } catch (e) {} }
+                            if (addLight) { try { ctx.add_class('light'); } catch (e) {} } else { try { ctx.remove_class('light'); } catch (e) {} }
+                        }
+                    } catch (e) { }
+
+                    try {
+                        if (widget && typeof widget.get_children === 'function') {
+                            let kids = widget.get_children();
+                            if (kids && kids.length) {
+                                for (let i = 0; i < kids.length; i++) walkAndUpdate(kids[i], addDark, addLight);
+                            }
+                        }
+                    } catch (e) { }
+                }
+
+                let addDark = (theme === 'dark');
+                let addLight = (theme === 'light');
+                try { walkAndUpdate(this._window, addDark, addLight); } catch (e) { /* ignore */ }
+
+                // Manage a temporary CSS provider for explicit light forcing.
+                try {
+                    let display = (typeof Gdk.Display !== 'undefined' && Gdk.Display.get_default) ? Gdk.Display.get_default() : null;
+
+                    // Ensure we have a light provider created when needed
+                    if (theme === 'light') {
+                        if (!this._lightCssProvider) {
+                            try {
+                                this._lightCssProvider = Gtk.CssProvider.new();
+                                let css = "* { background-color: #ffffff !important; color: #111111 !important; }\\n" +
+                                          "window, .header-bar, headerbar, .headerbar { background-color: #ffffff !important; }\\n" +
+                                          "button, label, entry, treeview, listbox, box { background-color: transparent !important; color: #111111 !important; }";
+                                this._lightCssProvider.load_from_data(css);
+                            } catch (e) { this._lightCssProvider = null; }
+                        }
+
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.add_provider_for_display(display, this._lightCssProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION); } catch (e) { }
+                        }
+
+                        // Remove any dark provider if present
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._darkCssProvider); } catch (e) { }
+                        }
+                    } else if (theme === 'dark') {
+                        // Remove the light provider when entering dark
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._lightCssProvider); } catch (e) { }
+                        }
+
+                        // Optionally create a dark provider (not necessary in most cases)
+                        if (!this._darkCssProvider) {
+                            try {
+                                this._darkCssProvider = Gtk.CssProvider.new();
+                                let cssd = "* { background-color: #222222 !important; color: #ffffff !important; }";
+                                this._darkCssProvider.load_from_data(cssd);
+                            } catch (e) { this._darkCssProvider = null; }
+                        }
+
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.add_provider_for_display(display, this._darkCssProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION); } catch (e) { }
+                        }
+                    } else {
+                        // system - remove both providers
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._lightCssProvider); } catch (e) { }
+                        }
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._darkCssProvider); } catch (e) { }
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                try { this._window.present(); } catch (e) { /* ignore */ }
+            }
+        } catch (e) {
+            // Non-fatal
+        }
+    },
+
+    _watchSystemColorScheme: function() {
+        try {
+            if (this._gnomeSettings) return;
+            this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+            this._gnomeSettings.connect('changed::color-scheme', () => {
+                if (this._config && this._config.theme === 'system') this._applyTheme();
+            });
+            // Apply immediately
+            if (this._config && this._config.theme === 'system') this._applyTheme();
+        } catch (e) {
+            // Not available — ignore
+        }
+    },
+
     _showOptionsDialog: function() {
         let dialog = new Gtk.Dialog({
             title: "Options",
@@ -941,8 +1181,31 @@ const Application = new Lang.Class({
         content.set_margin_top(20);
         content.set_margin_bottom(20);
 
-        let label = new Gtk.Label({ label: "No options available." });
-        content.append(label);
+        // Theme follows GNOME system color-scheme (no manual toggle)
+        let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 8 });
+
+        let infoLabel = new Gtk.Label({ label: "Theme: follows GNOME system color scheme (Appearance → Style)." });
+        infoLabel.set_halign(Gtk.Align.START);
+        infoLabel.set_wrap(true);
+
+        let currentLabel = new Gtk.Label({ label: "Current: determining..." });
+        currentLabel.set_halign(Gtk.Align.START);
+
+        // Determine current effective system color-scheme
+        try {
+            let effective = 'Light (default)';
+            if (!this._gnomeSettings) this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+            let cs = this._gnomeSettings.get_string('color-scheme');
+            if (cs === 'prefer-dark') effective = 'Dark (system)'; else effective = 'Light (system)';
+            currentLabel.set_label('Current: ' + effective);
+        } catch (e) {
+            currentLabel.set_label('Current: unknown (GNOME settings not found)');
+        }
+
+        vbox.append(infoLabel);
+        vbox.append(currentLabel);
+
+        content.append(vbox);
 
         dialog.connect("response", () => dialog.destroy());
         dialog.show();
@@ -1220,6 +1483,15 @@ const Application = new Lang.Class({
         let user = this._loadJSON(GLib.get_user_data_dir() + "/fedy/config.json");
 
         this._extendObject(this._config, system, user);
+
+        // Ensure a sensible default
+        if (!this._config.theme) this._config.theme = "system";
+
+        // Apply configured theme as early as possible
+        this._applyTheme();
+
+        // Start watching GNOME color-scheme changes so 'system' follows it live
+        try { this._watchSystemColorScheme(); } catch (e) { /* ignore */ }
     },
 });
 
