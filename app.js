@@ -656,7 +656,7 @@ const Application = new Lang.Class({
 
         this._panes = {};
 
-        let categoryOrder = ["Apps", "Games", "Development Tools", "Tweaks", "Utilities"];
+        let categoryOrder = ["Apps", "Games", "Emulators", "Development Tools", "Utilities", "Drivers"];
 
         let categories = Object.keys(this._plugins).sort((a, b) => {
             let indexA = categoryOrder.indexOf(a);
