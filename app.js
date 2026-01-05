@@ -1755,6 +1755,22 @@ const Application = new Lang.Class({
                 content.set_margin_top(12);
                 content.set_margin_bottom(12);
 
+                // Helper to append widgets safely (remove existing parent if necessary)
+                function safeAppend(container, widget) {
+                    try {
+                        if (widget && typeof widget.get_parent === 'function') {
+                            let parent = widget.get_parent();
+                            if (parent && typeof parent.remove === 'function') {
+                                try { parent.remove(widget); } catch (e) { /* ignore */ }
+                            }
+                        }
+
+                        container.append(widget);
+                    } catch (e) {
+                        try { container.append(widget); } catch (ee) { print('Failed to append widget: ' + ee.message); }
+                    }
+                }
+
                 let statusLabel = new Gtk.Label({ label: '0 / ' + tasks.length + ' completed' });
                 statusLabel.set_halign(Gtk.Align.START);
 
@@ -1784,9 +1800,9 @@ const Application = new Lang.Class({
                         let sc = new Gtk.ScrolledWindow({ min_content_height: 200, min_content_width: 600 });
                         let tv = new Gtk.TextView({ editable: false });
                         let buf = tv.get_buffer();
-                        buf.set_text('STDOUT:\n' + (l.out || '') + '\n\nSTDERR:\n' + (l.err || ''));
+                        try { buf.set_text('STDOUT:\n' + (l.out || '') + '\n\nSTDERR:\n' + (l.err || ''), -1); } catch (e) { try { buf.set_text('STDOUT:\n' + (l.out || '') + '\n\nSTDERR:\n' + (l.err || '')); } catch (ee) {} }
                         sc.set_child(tv);
-                        box.append(sc);
+                        try { box.append(sc); } catch (e) { try { if (sc.get_parent && sc.get_parent()) sc.get_parent().remove(sc); box.append(sc); } catch (ee) { print('Failed to append scrolled log: ' + ee.message); } }
                         dlg.show();
                     });
 
