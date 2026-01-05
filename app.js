@@ -1445,6 +1445,14 @@ const Application = new Lang.Class({
 
         fc.set_filename('fedy-manifest.json');
 
+        // Default the save dialog to the user's Documents folder (fallback to Home)
+        try {
+            let docs = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
+            if (docs) fc.set_current_folder(docs);
+        } catch (e) {
+            // ignore if not available
+        }
+
         fc.connect('response', (chooser, response) => {
             if (response === Gtk.ResponseType.ACCEPT) {
                 let filename = chooser.get_file().get_path();
