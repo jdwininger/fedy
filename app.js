@@ -959,6 +959,26 @@ const Application = new Lang.Class({
                                     GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
                                         try { jdkButton.set_label(plugin.scripts.jdk.label); } catch (e) {}
                                         try { jdkButton.set_sensitive(true); } catch (e) {}
+
+                                        // Re-check JDK status and update button if installed
+                                        try {
+                                            if (plugin.scripts && plugin.scripts.status_jdk && plugin.scripts.status_jdk.command) {
+                                                this._runPluginCommand(plugin, plugin.scripts.status_jdk.command, (pid2, status2) => {
+                                                    if (status2 === 0) {
+                                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                                    }
+                                                }, this._executeCommand);
+                                            } else {
+                                                this._executeCommand(null, "command -v javac", (pid2, status2) => {
+                                                    if (status2 === 0) {
+                                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                                    }
+                                                });
+                                            }
+                                        } catch (e) {}
+
                                         return false;
                                     });
                                 }, this._executeCommand);
