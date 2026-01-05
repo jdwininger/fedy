@@ -1478,7 +1478,10 @@ const Application = new Lang.Class({
 
             if (resp !== Gtk.ResponseType.OK) return;
 
-            // For each entry, find the plugin and queue its exec action
+            // Build tasks list (match manifest entries to available plugins)
+            let tasks = [];
+            let skipped = [];
+
             for (let e of entries) {
                 let found = null;
 
@@ -1495,16 +1498,107 @@ const Application = new Lang.Class({
                 }
 
                 if (found && found.scripts && found.scripts.exec && found.scripts.exec.command) {
-                    // Execute via queue so we don't parallelize everything
-                    this._queueCommand(found.path, found.scripts.exec.command, () => {});
+                    tasks.push(found);
+                } else {
+                    skipped.push(e);
                 }
             }
 
-            // Inform the user that installation jobs are queued
-            let info = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Install jobs queued; check progress in the UI.' });
-            info.add_button('OK', Gtk.ResponseType.OK);
-            info.connect('response', () => info.destroy());
-            info.show();
+            // Create progress dialog
+            let pd = new Gtk.Dialog({ title: 'Installing from manifest', modal: true, transient_for: this._window });
+            pd.add_button('Close', Gtk.ResponseType.CLOSE);
+            let content = pd.get_content_area();
+            content.set_margin_start(12);
+            content.set_margin_end(12);
+            content.set_margin_top(12);
+            content.set_margin_bottom(12);
+
+            let statusLabel = new Gtk.Label({ label: '0 / ' + tasks.length + ' completed' });
+            statusLabel.set_halign(Gtk.Align.START);
+
+            let progress = new Gtk.ProgressBar({ show_text: true });
+            progress.set_show_text(true);
+            progress.set_fraction(0);
+
+            // Use a vertical box for per-item status rows
+            let list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
+
+            // Populate list with initial rows
+            let rows = [];
+            for (let t of tasks) {
+                let r = new Gtk.Label({ label: t.label + ': queued', halign: Gtk.Align.START, xalign: 0 });
+                list.append(r);
+                rows.push(r);
+            }
+
+            if (skipped.length) {
+                let skipLabel = new Gtk.Label({ label: skipped.length + ' entries skipped (not available in this Fedy installation).', halign: Gtk.Align.START, xalign: 0 });
+                list.append(skipLabel);
+            }
+
+            content.append(statusLabel);
+            content.append(progress);
+            content.append(list);
+
+            // Disable Close until finished
+            let closeBtn = pd.get_widget_for_response(Gtk.ResponseType.CLOSE);
+            if (closeBtn) closeBtn.set_sensitive(false);
+
+            pd.show();
+
+            if (tasks.length === 0) {
+                statusLabel.set_label('No tasks to install.');
+                if (closeBtn) closeBtn.set_sensitive(true);
+                return;
+            }
+
+            // Queue and run tasks sequentially; update UI on each completion
+            let total = tasks.length;
+            let completed = 0;
+
+            for (let i = 0; i < tasks.length; i++) {
+                ((idx) => {
+                    let p = tasks[idx];
+                        // Only mark the first task as starting; subsequent tasks will be updated when their predecessor finishes
+                    if (idx === 0) {
+                        try { rows[idx].set_label(p.label + ': installing...'); } catch (e) {}
+                    }
+
+                    this._queueCommand(p.path, p.scripts.exec.command, (pid, status, error) => {
+                        // Update row text on completion
+                        if (status === 0) {
+                            try { rows[idx].set_label(p.label + ': installed'); } catch (e) {}
+                        } else {
+                            try { rows[idx].set_label(p.label + ': failed (exit ' + status + ')'); } catch (e) {}
+                        }
+
+                        // Start next task's 'installing..' marker if any
+                        if (idx + 1 < rows.length) {
+                            try { rows[idx + 1].set_label(tasks[idx + 1].label + ': installing...'); } catch (e) {}
+                        }
+
+                        completed++;
+                        let fraction = completed / total;
+                        try { progress.set_fraction(fraction); progress.set_text(Math.round(fraction * 100) + '%'); } catch (e) {}
+                        try { statusLabel.set_label(completed + ' / ' + total + ' completed'); } catch (e) {}
+
+                        if (completed === total) {
+                            // Re-enable close button
+                            if (closeBtn) closeBtn.set_sensitive(true);
+
+                            // Append a quick summary dialog
+                            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+                                let done = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest installation finished. ' + completed + ' items processed.'});
+                                done.add_button('OK', Gtk.ResponseType.OK);
+                                done.connect('response', () => done.destroy());
+                                done.show();
+
+                                return false;
+                            });
+                        }
+                    });
+                })(i);
+            }
         });
 
         dialog.show();
