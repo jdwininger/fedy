@@ -1810,7 +1810,7 @@ const Application = new Lang.Class({
                 return; // wait for user's response
             }
 
-            const runTasks = (isTest = false) => {
+            function runTasks(isTest = false) {
                 // Create progress dialog
                 let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: this._window });
                 pd.add_button('Cancel', Gtk.ResponseType.CANCEL);
