@@ -1701,376 +1701,294 @@ const Application = new Lang.Class({
     },
 
     _installPluginsFromManifest: function(entries) {
-        // Confirm with the user
-        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Install ' + entries.length + ' entries from manifest?'});
-        dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
-        dialog.add_button('Self-test', Gtk.ResponseType.APPLY);
-        dialog.add_button('Install', Gtk.ResponseType.OK);
+        let pluginsToInstall = [];
+        let skipped = [];
+        this._pluginQueue = [];
+        // Reset progress counters
+        this._totalPluginsToInstall = 0;
+        this._installedPluginsCount = 0;
+        this._importProgressDialog = null;
+        this._importProgressBar = null;
+        this._importProgressLabel = null;
 
-        dialog.connect('response', (d, resp) => {
-            d.destroy();
-
-            if (resp === Gtk.ResponseType.CANCEL) return;
-
-            // Capture parent window early so callbacks can reference it even if we return
-            let parentWindow = this._window;
-
-                let found = null;
-
-                for (let cat of Object.keys(this._plugins)) {
-                    for (let key of Object.keys(this._plugins[cat])) {
-                        let p = this._plugins[cat][key];
-                        if ((e.slug && p.slug && p.slug === e.slug) || (e.label && p.label && p.label === e.label)) {
-                            found = p;
-                            break;
+        // 1. Sort entries
+        for (let entry of entries) {
+            let found = false;
+            // Handle plugins identified by slug
+            if (entry.slug) {
+                // Search all categories
+                for (let category in this._plugins) {
+                    if (this._plugins[category][entry.slug]) {
+                        pluginsToInstall.push(this._plugins[category][entry.slug]);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            // Also handle plugins by label if slug not found (legacy support)
+            if (!found && entry.label) {
+                for (let category in this._plugins) {
+                    for (let p in this._plugins[category]) {
+                        if (this._plugins[category][p].label === entry.label) {
+                             pluginsToInstall.push(this._plugins[category][p]);
+                             found = true;
+                             break;
                         }
                     }
-
                     if (found) break;
                 }
-
-                if (found && found.scripts && found.scripts.exec && found.scripts.exec.command) {
-                    tasks.push(found);
-                } else {
-                    skipped.push(e);
-                }
             }
 
-            // If any entries were skipped, show a dialog to explain and offer fallback installs
-            if (skipped.length) {
-                let sd = new Gtk.Dialog({ title: 'Skipped manifest entries', modal: true, transient_for: this._window });
-                sd.add_button('Cancel', Gtk.ResponseType.CANCEL);
-                sd.add_button('Proceed with matched entries', Gtk.ResponseType.OK);
-
-                let fallbackable = [];
-
-                let sc = sd.get_content_area();
-                sc.set_margin_start(12); sc.set_margin_end(12); sc.set_margin_top(12); sc.set_margin_bottom(12);
-
-                let info = new Gtk.Label({ label: skipped.length + ' entries skipped (not available in this Fedy installation).', halign: Gtk.Align.START });
-                sc.append(info);
-
-                let list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
-
-                for (let e of skipped) {
-                    let reason = 'Not matched to any plugin';
-                    let fb = null;
-
-                    if (e.flatpak && e.flatpak.app_id) {
-                        reason = 'Flatpak: ' + e.flatpak.app_id;
-                        fb = 'flatpak install -y ' + (e.flatpak.remote ? (GLib.shell_quote(e.flatpak.remote) + ' ') : '') + GLib.shell_quote(e.flatpak.app_id);
-                    } else if (e.packages && Array.isArray(e.packages) && e.packages.length) {
-                        reason = 'Packages: ' + e.packages.join(', ');
-                        let pkgs = e.packages.map(x => GLib.shell_quote(x)).join(' ');
-                        fb = 'dnf -y install ' + pkgs;
-                    } else if (e.exec_command) {
-                        reason = 'Exec: ' + e.exec_command;
-                        fb = e.exec_command;
-                    } else {
-                        reason = 'No install information available';
-                    }
-
-                    let row = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
-                    let lbl = new Gtk.Label({ label: (e.label || e.slug || 'Unknown') + ': ' + reason, halign: Gtk.Align.START, xalign: 0 });
-                    row.append(lbl);
-                    list.append(row);
-
-                    if (fb) fallbackable.push({ entry: e, command: fb });
+            if (!found) {
+                let cmd = null;
+                if (entry.flatpak && entry.flatpak.app_id) {
+                    let remote = entry.flatpak.remote ? (entry.flatpak.remote + ' ') : '';
+                    cmd = 'flatpak install --user -y ' + remote + entry.flatpak.app_id;
+                } else if (entry.packages && entry.packages.length) {
+                    cmd = 'pkexec dnf -y install ' + entry.packages.join(' ');
+                } else if (entry.exec_command) {
+                     cmd = entry.exec_command;
                 }
-
-                sc.append(list);
-
-                if (fallbackable.length) {
-                    sd.add_button('Attempt fallback installs', Gtk.ResponseType.APPLY);
+                
+                if (cmd) {
+                    skipped.push({ entry: entry, command: cmd });
                 }
-
-                sd.connect('response', (dlg, resp) => {
-                    dlg.destroy();
-
-                    print('Skipped dialog response: ' + resp);
-
-                    if (resp === Gtk.ResponseType.CANCEL) return; // abort
-
-                    if (resp === Gtk.ResponseType.APPLY) {
-                        // Build new tasks based on fallbackable commands
-                        let newTasks = [];
-                        for (let f of fallbackable) {
-                            newTasks.push({ label: (f.entry.label || f.entry.slug || 'Unknown'), scripts: { exec: { command: f.command } }, path: '.' });
-                        }
-
-                        tasks = newTasks;
-                        print('Fallback tasks built: ' + tasks.length);
-                    }
-
-                    // If user chose OK, tasks remain as originally matched. In either case, proceed to runTasks
-                    runTasks(false);
-                });
-
-                print('Showing skipped dialog with ' + skipped.length + ' skipped, ' + fallbackable.length + ' fallbackable');
-                sd.show();
-
-                return; // wait for user's response
             }
+        }
 
+        // 2. Queue valid plugins
+        if (pluginsToInstall.length > 0) {
+            this._totalPluginsToInstall = pluginsToInstall.length;
+            this._installedPluginsCount = 0;
+
+            // Create progress dialog
+            let dialog = new Gtk.Window({ title: "Installing Plugins", modal: true, transient_for: this._window, default_width: 400, default_height: 100 });
+            dialog.set_resizable(false);
+            
+            // Handle old vs new window closing
+            if (typeof dialog.set_deletable === "function") dialog.set_deletable(false);
+
+            let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12, margin_bottom: 24, margin_top: 24, margin_start: 24, margin_end: 24 });
+            
+            let label = new Gtk.Label({ label: "Preparing installation...", xalign: 0 });
+            this._importProgressLabel = label;
+            vbox.append(label);
+
+            let pbar = new Gtk.ProgressBar();
+            pbar.set_show_text(true);
+            this._importProgressBar = pbar;
+            vbox.append(pbar);
+
+            dialog.set_child(vbox);
+            dialog.present();
+
+            this._importProgressDialog = dialog;
+
+            for (let p of pluginsToInstall) {
+                 this._pluginQueue.push(p);
+            }
+            // Start processing with a small delay to let UI render
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._processPluginQueue();
+                return false;
+            });
+        }
+
+        // 3. Handle skipped entries
+        if (skipped.length > 0) {
             let parentWindow = this._window;
-            function runTasks(isTest = false) {
-                print('runTasks starting, isTest=' + isTest + ', tasks=' + (tasks ? tasks.length : 0));
-                // Create progress dialog
-                let pd = new Gtk.Dialog({ title: isTest ? 'Manifest self-test' : 'Installing from manifest', modal: true, transient_for: parentWindow });
-                pd.add_button('Cancel', Gtk.ResponseType.CANCEL);
-                pd.add_button('Close', Gtk.ResponseType.CLOSE);
-                let content = pd.get_content_area();
-                content.set_margin_start(12);
-                content.set_margin_end(12);
-                content.set_margin_top(12);
-                content.set_margin_bottom(12);
 
-                // Helper to append widgets safely (remove existing parent if necessary)
-                function safeAppend(container, widget) {
-                    try {
-                        if (widget && typeof widget.get_parent === 'function') {
-                            let parent = widget.get_parent();
-                            if (parent && typeof parent.remove === 'function') {
-                                try { parent.remove(widget); } catch (e) { /* ignore */ }
-                            }
-                        }
+            let dialog = new Gtk.MessageDialog({
+                modal: true,
+                transient_for: parentWindow,
+                text: "The following " + skipped.length + " entries are not in the plugin library.\n" +
+                      "They can be installed via fallback commands."
+            });
 
-                        container.append(widget);
-                    } catch (e) {
-                        try { container.append(widget); } catch (ee) { print('Failed to append widget: ' + ee.message); }
-                    }
+            // Try to add a scrollable list of commands to the dialog area
+            try {
+                let contentArea = dialog.get_content_area();
+                let scroll = new Gtk.ScrolledWindow();
+                scroll.set_min_content_height(200);
+                // Try GTK4 prop, if fails catch block handles safely
+                if (typeof scroll.set_propagate_natural_height === 'function') {
+                    scroll.set_propagate_natural_height(true);
                 }
-
-                let statusLabel = new Gtk.Label({ label: '0 / ' + tasks.length + ' completed' });
-                statusLabel.set_halign(Gtk.Align.START);
-
-                let progress = new Gtk.ProgressBar({ show_text: true });
-                progress.set_show_text(true);
-                progress.set_fraction(0);
-
-                // Use a vertical box for per-item status rows with log buttons
-                let list = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 6 });
-
-                // Populate list with initial rows
-                let rows = [];
-                let logButtons = [];
-                let logs = [];
-
-                for (let i = 0; i < tasks.length; i++) {
-                    let t = tasks[i];
-                    let h = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
-                    let lbl = new Gtk.Label({ label: t.label + ': queued', halign: Gtk.Align.START, xalign: 0 });
-                    let logBtn = new Gtk.Button({ label: 'View log' });
-                    logBtn.set_sensitive(false);
-                    logBtn.connect('clicked', () => {
-                        let l = logs[i] || {out: '', err: ''};
-                        let dlg = new Gtk.Dialog({ title: t.label + ' - Log', transient_for: pd, modal: true });
-                        dlg.add_button('OK', Gtk.ResponseType.OK);
-                        let box = dlg.get_content_area();
-                        let sc = new Gtk.ScrolledWindow({ min_content_height: 200, min_content_width: 600 });
-                        let tv = new Gtk.TextView({ editable: false });
-                        let buf = tv.get_buffer();
-                        try { buf.set_text('STDOUT:\n' + (l.out || '') + '\n\nSTDERR:\n' + (l.err || ''), -1); } catch (e) { try { buf.set_text('STDOUT:\n' + (l.out || '') + '\n\nSTDERR:\n' + (l.err || '')); } catch (ee) {} }
-                        sc.set_child(tv);
-                        try { box.append(sc); } catch (e) { try { if (sc.get_parent && sc.get_parent()) sc.get_parent().remove(sc); box.append(sc); } catch (ee) { print('Failed to append scrolled log: ' + ee.message); } }
-                        dlg.show();
-                    });
-
-                    h.append(lbl);
-                    h.append(logBtn);
-                    list.append(h);
-
-                    rows.push(lbl);
-                    logButtons.push(logBtn);
-                    logs.push({ out: '', err: '' });
+                
+                let textView = new Gtk.TextView({
+                    editable: false,
+                    monospace: true
+                });
+                // Formatting: Show command
+                let text = skipped.map(s => "# " + (s.entry.label || s.entry.slug) + "\n" + s.command).join("\n\n");
+                textView.get_buffer().set_text(text, -1);
+                
+                if (typeof scroll.set_child === 'function') { // GTK4
+                    scroll.set_child(textView);
+                    contentArea.append(scroll);
+                } else { // GTK3
+                    scroll.add(textView);
+                    contentArea.pack_start(scroll, true, true, 5);
+                    contentArea.show_all();
                 }
+            } catch(e) { /* ignore layout errors */ }
 
-                if (skipped.length) {
-                    let skipLabel = new Gtk.Label({ label: skipped.length + ' entries skipped (not available in this Fedy installation).', halign: Gtk.Align.START, xalign: 0 });
-                    list.append(skipLabel);
+            dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
+            let btnCopy = dialog.add_button('Copy Commands', Gtk.ResponseType.APPLY);
+            let btnRun = dialog.add_button('Run Commands', Gtk.ResponseType.ACCEPT);
+            
+            try { btnRun.get_style_context().add_class('suggested-action'); } catch(e){}
+
+            dialog.connect('response', (d, response) => {
+                if (response === Gtk.ResponseType.ACCEPT) {
+                     d.destroy();
+                     // Run the fallback tasks
+                     this._runFallbackTasks(skipped);
+                } else if (response === Gtk.ResponseType.APPLY) {
+                     // Copy to clipboard
+                     let txt = skipped.map(s => s.command).join("\n");
+                     try {
+                         Gdk.Display.get_default().get_clipboard().set_text(txt);
+                     } catch(err) {
+                         // GTK3 fallback or error
+                         try { 
+                             let clip = Gtk.Clipboard.get_default(Gdk.Display.get_default());
+                             clip.set_text(txt, -1);
+                         } catch(e2) {}
+                     }
+                     // Keep dialog open
+                } else {
+                     d.destroy();
                 }
-
-                safeAppend(content, statusLabel);
-                safeAppend(content, progress);
-                safeAppend(content, list);
-
-                // Disable Close until finished
-                let closeBtn = pd.get_widget_for_response(Gtk.ResponseType.CLOSE);
-                if (closeBtn) closeBtn.set_sensitive(false);
-
-                pd.show();
-
-                if (tasks.length === 0) {
-                    statusLabel.set_label('No tasks to install.');
-                    if (closeBtn) closeBtn.set_sensitive(true);
-                    return;
-                }
-
-                // Cancel behavior: finish current and stop further tasks
-                let cancelRequested = false;
-                let cancelBtn = pd.get_widget_for_response(Gtk.ResponseType.CANCEL);
-                if (cancelBtn) {
-                    cancelBtn.connect('clicked', () => {
-                        // Ask for confirmation before cancelling remaining tasks
-                        let confirm = new Gtk.MessageDialog({ modal: true, transient_for: pd, text: 'Finish the current step and stop any further installations?' });
-                        confirm.add_button('No', Gtk.ResponseType.CANCEL);
-                        confirm.add_button('Yes', Gtk.ResponseType.OK);
-
-                        confirm.connect('response', (dlg, resp) => {
-                            dlg.destroy();
-
-                            // If user declines, re-enable cancel button and do nothing
-                            if (resp !== Gtk.ResponseType.OK) {
-                                try { cancelBtn.set_sensitive(true); } catch (e) {}
-                                return;
-                            }
-
-                            // Proceed with cancellation: finish current step, stop starting new ones
-                            cancelRequested = true;
-                            try { cancelBtn.set_sensitive(false); } catch (e) {}
-
-                            // Clear the global queue so no further tasks are started
-                            try { this._queue = []; } catch (e) {}
-
-                            // Mark remaining rows as cancel pending
-                            for (let j = 0; j < rows.length; j++) {
-                                try {
-                                    let txt = (rows[j].get_text) ? rows[j].get_text() : '';
-                                    if (txt.indexOf(': installed') === -1 && txt.indexOf(': failed') === -1 && txt.indexOf(': cancelling') === -1) {
-                                        rows[j].set_label(tasks[j].label + ': cancelling');
-                                    }
-                                } catch (e) {}
-                            }
-                        });
-                    });
-                }
-
-                // Generate a unique tmp base for logs
-                let base = "/tmp/fedy-manifest-" + Date.now() + "-" + Math.floor(Math.random() * 100000);
-
-                // Queue and run tasks sequentially; update UI on each completion
-                let total = tasks.length;
-                let completed = 0;
-
-                for (let i = 0; i < tasks.length; i++) {
-                    ((idx) => {
-                        let p = tasks[idx];
-
-                        // prepare temp files
-                        let outFile = base + '-' + idx + '.out';
-                        let errFile = base + '-' + idx + '.err';
-                        let exitFile = base + '-' + idx + '.exit';
-
-                        // create the wrapped command that records stdout/stderr/exit
-                        let runCmd;
-                        if (isTest) {
-                            // self-test writes simple output files
-                            runCmd = "bash -lc 'echo " + GLib.shell_quote("[SELFTEST] " + p.label) + " >" + GLib.shell_quote(outFile) + "; echo " + GLib.shell_quote("Simulated stderr for " + p.label) + " >" + GLib.shell_quote(errFile) + "; echo 0 >" + GLib.shell_quote(exitFile) + "'";
-                        } else {
-                            runCmd = "bash -lc 'set -o pipefail; (" + p.scripts.exec.command + ") >" + GLib.shell_quote(outFile) + " 2>" + GLib.shell_quote(errFile) + "; echo $? >" + GLib.shell_quote(exitFile) + "'";
-                        }
-
-                        // Only mark the first task as starting; subsequent tasks will be updated when their predecessor finishes
-                        if (idx === 0) {
-                            try { rows[idx].set_label(p.label + ': installing...'); } catch (e) {}
-                        }
-
-                        this._queueCommand(p.path, runCmd, (pid, status, error) => {
-                            // read logs
-                            try {
-                                let [ok1, outBuf] = GLib.file_get_contents(outFile);
-                                let [ok2, errBuf] = GLib.file_get_contents(errFile);
-                                let [ok3, exitBuf] = GLib.file_get_contents(exitFile);
-
-                                let outText = (ok1 && outBuf) ? ByteArray.toString(outBuf) : '';
-                                let errText = (ok2 && errBuf) ? ByteArray.toString(errBuf) : '';
-                                let exitText = (ok3 && exitBuf) ? ByteArray.toString(exitBuf).trim() : String(status || 1);
-
-                                logs[idx] = { out: outText, err: errText, exit: exitText };
-
-                                // clean up temp files
-                                try { Gio.File.new_for_path(outFile).delete(null); } catch (e) {}
-                                try { Gio.File.new_for_path(errFile).delete(null); } catch (e) {}
-                                try { Gio.File.new_for_path(exitFile).delete(null); } catch (e) {}
-
-                                // enable log button
-                                try { logButtons[idx].set_sensitive(true); } catch (e) {}
-                            } catch (e) {
-                                // ignore file read errors
-                            }
-
-                            // Update row text on completion
-                            let exitCode = (logs[idx] && logs[idx].exit) ? parseInt(logs[idx].exit) : status;
-
-                            if (exitCode === 0) {
-                                try { rows[idx].set_label(p.label + ': installed'); } catch (e) {}
-                            } else {
-                                try { rows[idx].set_label(p.label + ': failed (exit ' + exitCode + ')'); } catch (e) {}
-                            }
-
-                            // If cancellation was requested, skip starting further tasks
-                            if (cancelRequested) {
-                                // Mark remaining rows as cancelled
-                                for (let j = idx + 1; j < rows.length; j++) {
-                                    try { rows[j].set_label(tasks[j].label + ': cancelled'); } catch (e) {}
-                                }
-
-                                if (closeBtn) closeBtn.set_sensitive(true);
-
-                                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: parentWindow, text: 'Manifest installation cancelled. ' + (completed + 1) + ' items processed.'});
-                                    done.add_button('OK', Gtk.ResponseType.OK);
-                                    done.connect('response', () => done.destroy());
-                                    done.show();
-
-                                    return false;
-                                });
-
-                                return;
-                            }
-
-                            // Start next task's 'installing..' marker if any
-                            if (idx + 1 < rows.length) {
-                                try { rows[idx + 1].set_label(tasks[idx + 1].label + ': installing...'); } catch (e) {}
-                            }
-
-                            completed++;
-                            let fraction = completed / total;
-                            try { progress.set_fraction(fraction); progress.set_text(Math.round(fraction * 100) + '%'); } catch (e) {}
-                            try { statusLabel.set_label(completed + ' / ' + total + ' completed'); } catch (e) {}
-
-                            if (completed === total) {
-                                // Re-enable close button
-                                if (closeBtn) closeBtn.set_sensitive(true);
-
-                                // Append a quick summary dialog
-                                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
-                                    let done = new Gtk.MessageDialog({ modal: true, transient_for: parentWindow, text: (isTest ? 'Self-test finished.' : 'Manifest installation finished.') + ' ' + completed + ' items processed.'});
-                                    done.add_button('OK', Gtk.ResponseType.OK);
-                                    done.connect('response', () => done.destroy());
-                                    done.show();
-
-                                    return false;
-                                });
-                            }
-                        });
-                    })(i);
-                }
-            };
-
-            if (resp === Gtk.ResponseType.APPLY) {
-                // Self-test mode
-                runTasks(true);
-                return;
-            }
-
-            // Otherwise perform real install
-            runTasks(false);
-
             });
 
             dialog.show();
-        },
+        } else if (pluginsToInstall.length === 0) {
+             let info = new Gtk.MessageDialog({ 
+                 modal: true, 
+                 transient_for: this._window, 
+                 text: 'Manifest contained no valid plugins or fallback entries found.'
+             });
+             info.add_button('OK', Gtk.ResponseType.OK);
+             info.connect('response', () => info.destroy());
+             info.show();
+        }
+    },
+
+    _processPluginQueue: function() {
+        if (!this._pluginQueue || this._pluginQueue.length === 0) {
+            // Queue finished.
+            if (this._importProgressDialog) {
+                this._importProgressDialog.destroy();
+                this._importProgressDialog = null;
+                
+                let done = new Gtk.MessageDialog({
+                    modal: true,
+                    transient_for: this._window,
+                    text: "Import completed successfully."
+                });
+                done.add_button('OK', Gtk.ResponseType.OK);
+                done.connect('response', () => done.destroy());
+                done.show();
+            }
+            return;
+        }
+
+        let plugin = this._pluginQueue[0];
+        
+        // Update UI
+        if (this._importProgressLabel) {
+            this._importProgressLabel.set_text("Installing " + plugin.label + "...");
+        }
+        if (this._importProgressBar && this._totalPluginsToInstall > 0) {
+            let fraction = this._installedPluginsCount / this._totalPluginsToInstall;
+            this._importProgressBar.set_fraction(fraction);
+            this._importProgressBar.set_text(Math.round(fraction * 100) + "%");
+        }
+
+        let onDone = (success) => {
+            this._installedPluginsCount++;
+            
+            // Check queue length again before shifting just in case
+             if (this._pluginQueue.length > 0) {
+                 this._pluginQueue.shift();
+             }
+
+            // Update bar to reflect completion of this item
+            if (this._importProgressBar && this._totalPluginsToInstall > 0) {
+                let fraction = this._installedPluginsCount / this._totalPluginsToInstall;
+                this._importProgressBar.set_fraction(fraction);
+                this._importProgressBar.set_text(Math.round(fraction * 100) + "%");
+            }
+            
+            // Process next
+            this._processPluginQueue();
+        };
+
+        try {
+            if (plugin.flatpak) {
+                 let app_id = plugin.flatpak.app_id;
+                 let installCmd = "flatpak install --user -y flathub " + app_id;
+                 // Blindly try install (idempotent)
+                 this._executeCommand(null, installCmd, (pid, status) => {
+                     onDone(status === 0);
+                 });
+            } else if (plugin.scripts && plugin.scripts.exec) {
+                 // Check if installed first to avoid reinstalling working apps
+                 this._getPluginStatus(plugin, (action, status) => {
+                     // If installed, action is usually uninstall script or null/status=0
+                     // If NOT installed, action is install script
+                     
+                     // If action matches uninstall script, we skip
+                     if (action === plugin.scripts.uninstall || (status === 0 && !action.command)) {
+                         onDone(true); 
+                         return;
+                     }
+                     
+                     if (action && action.command) {
+                         this._runPluginCommand(plugin, action.command, (pid, status) => {
+                             onDone(status === 0);
+                         }, this._executeCommand); // Use _executeCommand directly instead of _queueCommand to avoid recursive specific queue issues
+                     } else {
+                         // Cannot install?
+                         onDone(false);
+                     }
+                 });
+            } else {
+                onDone(true);
+            }
+        } catch (e) {
+            print("Error processing plugin queue for " + plugin.label + ": " + e.message);
+            onDone(false);
+        }
+    },
+
+    _runFallbackTasks: function(tasks) {
+        if (tasks.length === 0) {
+            let done = new Gtk.MessageDialog({
+                modal: true,
+                transient_for: this._window,
+                text: "All fallback commands processed."
+            });
+            done.add_button('OK', Gtk.ResponseType.OK);
+            done.connect('response', () => done.destroy());
+            done.show();
+            return;
+        }
+
+        let task = tasks.shift();
+        let cmd = task.command;
+        let label = task.entry.label || task.entry.slug;
+
+        // Execute command using existing async helper
+        this._executeCommand(null, cmd, (pid, status) => {
+            if (status !== 0) {
+                 // Log failure?
+            }
+            // Recurse
+            this._runFallbackTasks(tasks);
+        }, this);
+    },
 
     _importManifest: function() {
         let fc = new Gtk.FileChooserNative({ title: 'Import manifest', action: Gtk.FileChooserAction.OPEN, transient_for: this._window });
@@ -2179,22 +2097,8 @@ const Application = new Lang.Class({
 
                 return;
             }
-
-            // installed for user — apply classes and stop
-            try {
-                button.get_style_context().remove_class('suggested-action');
-                button.get_style_context().remove_class('destructive-action');
-                if (button.label === 'Install') {
-                    button.get_style_context().add_class('suggested-action');
-                } else {
-                    button.get_style_context().add_class('destructive-action');
-                }
-            } catch (e) {
-                // ignore if style_context not available
-            }
-            button.sensitive = true;
-            spinner.stop();
         }, hideOutputFlags);
+
     },
 
     _handleFlatpakTask: function(button, spinner, plugin) {
