@@ -1,0 +1,12 @@
+{
+  "icon": "sober",
+  "label": "Sober",
+  "description": "Sober - A Roblox compatibility layer for Linux.",
+  "license": "Open Source",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "org.vinegarhq.Sober",
+    "remote": "flathub",
+    "user_install": true
+  }
+}

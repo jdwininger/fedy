@@ -1,0 +1,12 @@
+{
+  "label": "BlastEm",
+  "description": "BlastEm is a Sega Genesis/Megadrive emulator.",
+  "category": "Emulators",
+  "icon": "blastem",
+  "license": "GPL-2.0-or-later",
+  "flatpak": {
+    "app_id": "com.retrodev.blastem",
+    "remote": "flathub",
+    "user_install": true
+  }
+}

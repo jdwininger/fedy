@@ -1,0 +1,13 @@
+{
+	"icon": "wine",
+	"label": "Wine",
+	"description": "Wine and Winetricks - Windows compatibility layer and helper tools.",
+	"license": "Open Source",
+	"category": "Utilities",
+	"hint": "System compatibility tools; no GUI.",
+	"scripts": {
+		"exec": { "label": "Install", "command": "run-as-root -s install.sh" },
+		"undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" },
+		"status": { "command": "bash status.sh" }
+	}
+}

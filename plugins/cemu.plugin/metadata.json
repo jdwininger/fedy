@@ -1,11 +1,12 @@
 {
-	"icon": "cemu",
-	"label": "Cemu",
-	"description": "Cemu is a Wii U emulator.",
-	"license": "Mozilla Public License 2.0",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "info.cemu.Cemu",
-		"remote": "flathub"
-	}
+  "icon": "cemu",
+  "label": "Cemu",
+  "description": "Cemu is a Wii U emulator.",
+  "license": "Mozilla Public License 2.0",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "info.cemu.Cemu",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

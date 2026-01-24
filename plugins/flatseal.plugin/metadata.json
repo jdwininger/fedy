@@ -1,11 +1,12 @@
 {
-	"icon": "flatseal",
-	"label": "Flatseal",
-	"description": "Flatseal - manage Flatpak permissions.",
-	"license": "Open Source",
-	"category": "Applications",
-	"flatpak": {
-		"app_id": "com.github.tchx84.Flatseal",
-		"remote": "flathub"
-	}
+  "icon": "flatseal",
+  "label": "Flatseal",
+  "description": "Flatseal - manage Flatpak permissions.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "com.github.tchx84.Flatseal",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

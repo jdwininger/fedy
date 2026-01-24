@@ -8,6 +8,9 @@ imports.gi.versions.Gtk = '4.0';
 imports.gi.versions.Gdk = '4.0';
 imports.gi.versions.GdkPixbuf = '2.0';
 
+// Try to load libadwaita (Adw) if available
+try { imports.gi.versions.Adw = '1.0'; } catch (e) { /* ignore if not present */ }
+
 const Gio = imports.gi.Gio;
 const GLib = imports.gi.GLib;
 const Gtk = imports.gi.Gtk;
@@ -15,6 +18,8 @@ const Gdk = imports.gi.Gdk;
 const GdkPixbuf = imports.gi.GdkPixbuf;
 const Notify = imports.gi.Notify;
 const Pango = imports.gi.Pango;
+let Adw = null;
+try { Adw = imports.gi.Adw; } catch (e) { Adw = null; }
 const Lang = imports.lang;
 const System = imports.system;
 const FedyCli = imports.cli.FedyCli;
@@ -483,6 +488,9 @@ const Application = new Lang.Class({
 
             button.set_label(action.label);
 
+            // If plugin provides a hint, use it as the button tooltip (useful for system-level services)
+            try { if (plugin.hint) { button.set_tooltip_text(plugin.hint); } else { button.set_tooltip_text(null); } } catch (e) {}
+
             if (status === 0 && action.command) {
                 try { button.get_style_context().add_class("destructive-action"); } catch (e) {}
             } else if (action.command) {
@@ -551,6 +559,15 @@ const Application = new Lang.Class({
 
                     if (status === 0) {
                         button.set_label("Finished!");
+
+                        // Record successful install actions to the user's manifest so they can be
+                        // exported/imported for system setup automation. Only record when the
+                        // executed action was the install (scripts.exec).
+                        try {
+                            if (action === plugin.scripts.exec) {
+                                try { this._appendToManifest(plugin); } catch (e) { print('Failed to append to manifest: ' + e.message); }
+                            }
+                        } catch (e) {}
                     } else {
                         button.set_label("Error!");
                     }
@@ -606,6 +623,39 @@ const Application = new Lang.Class({
                 font-size: 11px;
             }
 
+            /* Ensure plugin action area is vertically centered */
+            .view .plugin-actions {
+                padding-top: 0;
+                padding-bottom: 0;
+            }
+            .view .plugin-actions button {
+                margin-top: 0;
+                margin-bottom: 0;
+            }
+
+            /* Force a consistent plugin row minimum height to avoid oversized rows */
+            .view .even-row, .view .odd-row {
+                min-height: 56px;
+                padding-top: 8px;
+                padding-bottom: 8px;
+                padding-left: 8px;
+                padding-right: 8px;
+            }
+
+            /* Header switcher compact layout (limit real-estate) */
+            .header-switcher {
+                max-width: 360px;
+                min-width: 120px;
+                font-size: 12px;
+                padding-top: 2px;
+                padding-bottom: 2px;
+            }
+
+            .header-switcher > * {
+                padding-left: 6px;
+                padding-right: 6px;
+            }
+
             /* Flatpak buttons now use theme-provided action classes
                (suggested-action/destructive-action) so their colors match
                the rest of the UI and respect the current GTK theme. */
@@ -618,7 +668,7 @@ const Application = new Lang.Class({
 
         this._panes = {};
 
-        let categoryOrder = ["Apps", "Games", "Development Tools", "Tweaks", "Utilities"];
+        let categoryOrder = ["Apps", "Games", "Emulators", "Development Tools", "Utilities", "Drivers"];
 
         let categories = Object.keys(this._plugins).sort((a, b) => {
             let indexA = categoryOrder.indexOf(a);
@@ -637,11 +687,70 @@ const Application = new Lang.Class({
         } else {
             switcher = new Gtk.StackSwitcher({ stack: stack });
             switcher.get_style_context().add_class('header-switcher');
+
+            // Create small navigation controls to step through stack pages when
+            // the header switcher is constrained in width. This avoids taking
+            // excessive real-estate and gives users arrows to move between tabs.
+            let navBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 6 });
+
+            let left = new Gtk.Button({ halign: Gtk.Align.START });
+            let leftIcon = new Gtk.Image();
+            try { leftIcon.set_from_icon_name('go-previous-symbolic'); } catch (e) {}
+            left.set_child(leftIcon);
+
+            let right = new Gtk.Button({ halign: Gtk.Align.END });
+            let rightIcon = new Gtk.Image();
+            try { rightIcon.set_from_icon_name('go-next-symbolic'); } catch (e) {}
+            right.set_child(rightIcon);
+
+            navBox.append(left);
+            navBox.append(switcher);
+            navBox.append(right);
+
+            // Track the index so arrow buttons can change visible page
+            let currentIndex = 0;
+            function setIndex(i) {
+                currentIndex = (i + categories.length) % categories.length;
+                try { stack.set_visible_child_name(categories[currentIndex]); } catch (e) {}
+            }
+
+            left.connect('clicked', () => { setIndex(currentIndex - 1); });
+            right.connect('clicked', () => { setIndex(currentIndex + 1); });
+
+            // Keep arrows in sync with programmatic changes to the stack's visible page
+            try {
+                stack.connect('notify::visible-child', () => {
+                    try {
+                        let visible = stack.get_visible_child();
+
+                        for (let i = 0; i < categories.length; i++) {
+                            if (visible === this._panes[categories[i]]) {
+                                currentIndex = i;
+                                break;
+                            }
+                        }
+                    } catch (e) {}
+                });
+            } catch (e) {}
+
+            // Expose navBox so we can add it to the headerbar later instead of the raw switcher
+            switcher._navBox = navBox;
         }
 
         let sort = (row1, row2) => {
-            let label1 = row1.get_child().get_child_at(1, 1).get_label(),
-                label2 = row2.get_child().get_child_at(1, 1).get_label();
+            let getTitle = (row) => {
+                try {
+                    let rowBox = row.get_child();
+                    let textVBox = rowBox.get_children()[1];
+                    let titleBox = textVBox.get_children()[0];
+                    return titleBox.get_children()[0].get_label();
+                } catch (e) {
+                    return "";
+                }
+            };
+
+            let label1 = getTitle(row1);
+            let label2 = getTitle(row2);
 
             if (label1 > label2) {
                 return 1;
@@ -686,16 +795,16 @@ const Application = new Lang.Class({
                 let plugin = this._plugins[category][item];
                 print('fedy: loading plugin ' + plugin.category + '::' + plugin.label);
 
-                let grid = new Gtk.Grid({
-                    row_spacing: 2,
-                    column_spacing: 2,
-                    margin_start: 2,
-                    margin_end: 2,
-                    margin_top: 2,
-                    margin_bottom: 2
+                let rowBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.HORIZONTAL,
+                    spacing: 12,
+                    margin_start: 0,
+                    margin_end: 0,
+                    margin_top: 0,
+                    margin_bottom: 0
                 });
 
-                grid.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
+                rowBox.get_style_context().add_class(pluginIndex % 2 === 0 ? "even-row" : "odd-row");
 
                 let image = new Gtk.Image();
 
@@ -724,20 +833,30 @@ const Application = new Lang.Class({
                     image.set_from_icon_name("system-run");
                 }
 
-                grid.attach(image, 0, 1, 1, 2);
+                image.set_valign(Gtk.Align.CENTER);
+                rowBox.append(image);
 
-                // Title area (plugin name + license) — use an HBox to guarantee
-                // exact spacing (10px) and vertical centering relative to the icon
-                let titleBox = new Gtk.Box({
-                    orientation: Gtk.Orientation.HORIZONTAL,
-                    spacing: 10,
-                    halign: Gtk.Align.START,
+                // Text container (Title + Description)
+                let textVBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.VERTICAL,
+                    spacing: 2,
                     valign: Gtk.Align.CENTER,
                     hexpand: true
                 });
 
+                // Title area
+                let titleBox = new Gtk.Box({
+                    orientation: Gtk.Orientation.HORIZONTAL,
+                    spacing: 6,
+                    halign: Gtk.Align.START
+                });
+
                 let label = new Gtk.Label({ halign: Gtk.Align.START });
-                label.set_markup("<b>" + plugin.label + "</b>");
+                // Remove redundant parenthetical suffixes like "(Flathub)" or "(Flatpak)" for
+                // the plugin listing display so the UI is cleaner. Keep plugin.label unchanged
+                // internally for logging/notifications.
+                let displayLabel = plugin.label ? String(plugin.label).replace(/\s*\((?:Flathub|Flatpak)\)$/i, '') : '';
+                label.set_markup("<b>" + displayLabel + "</b>");
                 titleBox.append(label);
 
                 let license = new Gtk.Label({ halign: Gtk.Align.START });
@@ -748,62 +867,179 @@ const Application = new Lang.Class({
                 }
                 titleBox.append(license);
 
-                grid.attach(titleBox, 1, 1, 1, 1);
+                textVBox.append(titleBox);
 
                 let description = new Gtk.Label({
                     label: plugin.description,
-                    halign: Gtk.Align.START
+                    halign: Gtk.Align.START,
+                    wrap: true,
+                    max_width_chars: 60,
+                    xalign: 0
                 });
 
                 description.set_ellipsize(Pango.EllipsizeMode.END);
                 description.set_has_tooltip(true);
-
                 description.connect("query_tooltip", settooltip(plugin));
 
-                grid.attach(description, 1, 2, 2, 1);
+                textVBox.append(description);
+                rowBox.append(textVBox);
 
                 if (plugin.scripts) {
                     if (plugin.scripts.exec) {
                         let spinner = new Gtk.Spinner();
-
-                        grid.attach(spinner, 2, 1, 1, 2);
+                        spinner.set_valign(Gtk.Align.CENTER);
+                        rowBox.append(spinner);
 
                         let box = new Gtk.Box({
                             orientation: Gtk.Orientation.VERTICAL,
                             halign: Gtk.Align.END,
                             valign: Gtk.Align.CENTER,
-                            hexpand: true
+                            vexpand: false,
+                            spacing: 6
                         });
 
-                        let button = new Gtk.Button({
+                        try { box.get_style_context().add_class('plugin-actions'); } catch (e) {}
+
+                        let installButton = new Gtk.Button({
                             label: plugin.scripts.exec.label,
                             sensitive: false
                         });
 
-                        this._setButtonState(button, plugin);
+                        this._setButtonState(installButton, plugin);
+                        installButton.connect("clicked", () => this._handleTask(installButton, spinner, plugin));
+                        installButton.set_valign(Gtk.Align.CENTER);
+                        box.append(installButton);
 
-                        button.connect("clicked", () => this._handleTask(button, spinner, plugin));
+                        if (plugin.scripts.wine) {
+                            let wineSpinner = new Gtk.Spinner();
+                            let wineButton = new Gtk.Button({ label: plugin.scripts.wine.label, sensitive: true });
+                            try { wineButton.get_style_context().add_class('suggested-action'); } catch (e) {}
 
-                        box.append(button);
+                            wineButton.connect("clicked", () => {
+                                wineSpinner.start();
+                                wineButton.set_label('Working...');
+                                wineButton.set_sensitive(false);
 
-                        grid.attach(box, 3, 1, 1, 2);
+                                this._runPluginCommand(plugin, plugin.scripts.wine.command, (pid, status, error) => {
+                                    wineSpinner.stop();
+                                    if (status === 0) {
+                                        wineButton.set_label('Finished!');
+                                    } else {
+                                        wineButton.set_label('Error!');
+                                    }
+
+                                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                                        try { wineButton.set_label(plugin.scripts.wine.label); } catch (e) {}
+                                        try { wineButton.set_sensitive(true); } catch (e) {}
+                                        return false;
+                                    });
+                                }, this._executeCommand);
+                            });
+
+                            this._executeCommand(null, "command -v wine", (pid, status) => {
+                                if (status === 0) {
+                                    try { wineButton.set_sensitive(false); } catch (e) {}
+                                    try { wineButton.set_label('Wine installed'); } catch (e) {}
+                                }
+                            });
+
+                            wineButton.set_valign(Gtk.Align.CENTER);
+                            wineSpinner.set_valign(Gtk.Align.CENTER);
+
+                            box.append(wineButton);
+                            box.append(wineSpinner);
+                        }
+
+                        // Secondary action: Install JDK (OpenJDK-devel)
+                        if (plugin.scripts.jdk) {
+                            let jdkSpinner = new Gtk.Spinner();
+                            let jdkButton = new Gtk.Button({ label: plugin.scripts.jdk.label, sensitive: true });
+                            try { jdkButton.get_style_context().add_class('suggested-action'); } catch (e) {}
+
+                            jdkButton.connect("clicked", () => {
+                                jdkSpinner.start();
+                                jdkButton.set_label('Working...');
+                                jdkButton.set_sensitive(false);
+
+                                this._runPluginCommand(plugin, plugin.scripts.jdk.command, (pid, status, error) => {
+                                    jdkSpinner.stop();
+                                    if (status === 0) {
+                                        jdkButton.set_label('Finished!');
+                                    } else {
+                                        jdkButton.set_label('Error!');
+                                    }
+
+                                    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1000, () => {
+                                        try { jdkButton.set_label(plugin.scripts.jdk.label); } catch (e) {}
+                                        try { jdkButton.set_sensitive(true); } catch (e) {}
+
+                                        // Re-check JDK status and update button if installed
+                                        try {
+                                            if (plugin.scripts && plugin.scripts.status_jdk && plugin.scripts.status_jdk.command) {
+                                                this._runPluginCommand(plugin, plugin.scripts.status_jdk.command, (pid2, status2) => {
+                                                    if (status2 === 0) {
+                                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                                    }
+                                                }, this._executeCommand);
+                                            } else {
+                                                this._executeCommand(null, "command -v javac", (pid2, status2) => {
+                                                    if (status2 === 0) {
+                                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                                    }
+                                                });
+                                            }
+                                        } catch (e) {}
+
+                                        return false;
+                                    });
+                                }, this._executeCommand);
+                            });
+
+                            // Disable button if JDK is already installed — prefer plugin-provided status script
+                            if (plugin.scripts && plugin.scripts.status_jdk && plugin.scripts.status_jdk.command) {
+                                this._runPluginCommand(plugin, plugin.scripts.status_jdk.command, (pid, status) => {
+                                    if (status === 0) {
+                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                    }
+                                }, this._executeCommand);
+                            } else {
+                                this._executeCommand(null, "command -v javac", (pid, status) => {
+                                    if (status === 0) {
+                                        try { jdkButton.set_sensitive(false); } catch (e) {}
+                                        try { jdkButton.set_label('JDK installed'); } catch (e) {}
+                                    }
+                                });
+                            }
+
+                            try { jdkButton.set_valign(Gtk.Align.CENTER); } catch (e) {}
+                            try { jdkSpinner.set_valign(Gtk.Align.CENTER); } catch (e) {}
+
+                            box.append(jdkButton);
+                            box.append(jdkSpinner);
+                        }
+
+                        rowBox.append(box);
                     }
 
                     if (plugin.scripts.show && plugin.scripts.show.command) {
-                        setvisible(plugin, grid);
+                        setvisible(plugin, rowBox);
                     }
                 }
 
                 if (plugin.flatpak) {
                     let spinner = new Gtk.Spinner();
-
-                    grid.attach(spinner, 2, 1, 1, 2);
+                    spinner.set_valign(Gtk.Align.CENTER);
+                    rowBox.append(spinner);
 
                     let box = new Gtk.Box({
                         orientation: Gtk.Orientation.VERTICAL,
                         halign: Gtk.Align.END,
                         valign: Gtk.Align.CENTER,
-                        hexpand: true
+                        vexpand: false,
+                        spacing: 6
                     });
 
                     let button = new Gtk.Button({
@@ -812,15 +1048,14 @@ const Application = new Lang.Class({
                     });
 
                     this._setFlatpakButtonState(button, plugin, spinner);
-
                     button.connect("clicked", () => this._handleFlatpakTask(button, spinner, plugin));
-
+                    button.set_valign(Gtk.Align.CENTER);
                     box.append(button);
 
-                    grid.attach(box, 3, 1, 1, 2);
+                    rowBox.append(box);
                 }
 
-                list.append(grid);
+                list.append(rowBox);
 
                 pluginIndex++;
             }
@@ -836,11 +1071,16 @@ const Application = new Lang.Class({
             let searchtext = entry.get_text().toLowerCase();
 
             let filter = (row) => {
-                let items = row.get_children()[0].get_children(),
-                    title = items[4].get_label(),
-                    description = items[2].get_label();
-
-                return (title + description).toLowerCase().indexOf(searchtext) > -1;
+                try {
+                    let rowBox = row.get_child();
+                    let textVBox = rowBox.get_children()[1];
+                    let titleBox = textVBox.get_children()[0];
+                    let title = titleBox.get_children()[0].get_label();
+                    let description = textVBox.get_children()[1].get_label();
+                    return (title + description).toLowerCase().indexOf(searchtext) > -1;
+                } catch (e) {
+                    return false;
+                }
             };
 
             let children = stack.get_children();
@@ -904,14 +1144,18 @@ const Application = new Lang.Class({
                     }
             } else {
                 // switcher is a widget (Gtk.StackSwitcher)
+                // If we created a navigation box for compact header navigation,
+                // prefer adding the box which contains arrows + switcher.
+                let widgetToAdd = (switcher._navBox ? switcher._navBox : switcher);
+
                 if (typeof this._headerbar.set_title_widget === 'function') {
-                    this._headerbar.set_title_widget(switcher);
+                    this._headerbar.set_title_widget(widgetToAdd);
                 } else if (typeof this._headerbar.prepend === 'function') {
-                    this._headerbar.prepend(switcher);
+                    this._headerbar.prepend(widgetToAdd);
                 } else if (typeof this._headerbar.pack_start === 'function') {
-                    this._headerbar.pack_start(switcher);
+                    this._headerbar.pack_start(widgetToAdd);
                 } else if (typeof this._headerbar.append === 'function') {
-                    this._headerbar.append(switcher);
+                    this._headerbar.append(widgetToAdd);
                 }
             }
         } catch (e) {
@@ -924,6 +1168,310 @@ const Application = new Lang.Class({
         vbox.append(stack);
 
         this._window.set_child(vbox);
+    },
+
+    _saveJSON: function(path, obj) {
+        try {
+            let dir = GLib.path_get_dirname(path);
+            try { GLib.mkdir_with_parents(dir, 0o755); } catch (e) { /* ignore */ }
+
+            let file = Gio.File.new_for_path(path);
+            file.replace_contents(JSON.stringify(obj, null, 2), null, false, Gio.FileCreateFlags.NONE, null);
+        } catch (e) {
+            print("Error saving file " + path + " : " + e.message);
+        }
+    },
+
+    _saveConfig: function() {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/config.json";
+            this._saveJSON(path, this._config || {});
+        } catch (e) {
+            print('Error saving config: ' + e.message);
+        }
+    },
+
+    _generateManifestFromInstalled: function(cb = () => {}) {
+        // Walk plugins and detect installed ones, then write the canonical manifest
+        let all = [];
+        for (let cat of Object.keys(this._plugins || {})) {
+            for (let key of Object.keys(this._plugins[cat] || {})) {
+                all.push(this._plugins[cat][key]);
+            }
+        }
+
+        let manifest = [];
+        let idx = 0;
+        const next = () => {
+            if (idx >= all.length) {
+                try {
+                    let datadir = GLib.get_user_data_dir() + "/fedy";
+                    let path = datadir + "/manifest.json";
+                    this._saveJSON(path, manifest);
+                } catch (e) {
+                    print('Error saving generated manifest: ' + e.message);
+                }
+
+                cb(manifest);
+                return;
+            }
+
+            let p = all[idx++];
+
+            // Determine a check command
+            let checkCmd = null;
+            if (p.scripts && p.scripts.status && p.scripts.status.command) {
+                checkCmd = p.scripts.status.command;
+            } else if (p.packages && Array.isArray(p.packages) && p.packages.length) {
+                // check if any package is installed
+                let pkgs = p.packages.map(x => x.replace(/'/g, "'\\''")).join(' ');
+                checkCmd = "bash -lc 'for p in " + pkgs + "; do rpm -q \"$p\" >/dev/null 2>&1 && exit 0; done; exit 1'";
+            } else if (p.flatpak && p.flatpak.app_id) {
+                checkCmd = "bash -lc 'flatpak info " + p.flatpak.app_id + " >/dev/null 2>&1 && exit 0 || exit 1'";
+            }
+
+            if (!checkCmd) {
+                // Skip - can't determine
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => { next(); return false; });
+                return;
+            }
+
+            this._runPluginCommand(p, checkCmd, (pid, status) => {
+                if (status === 0) {
+                    manifest.push({
+                        slug: p.slug || null,
+                        label: p.label || null,
+                        category: p.category || null,
+                        packages: p.packages || null,
+                        flatpak: p.flatpak || null,
+                        exec_command: (p.scripts && p.scripts.exec) ? p.scripts.exec.command : null,
+                        installed_at: (new Date()).toISOString()
+                    });
+                }
+
+                GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => { next(); return false; });
+            }, this._executeCommand);
+        };
+
+        next();
+    },
+
+    _quickSaveManifestToDesktop: function() {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/manifest.json";
+            let manifest = this._loadJSON(path) || [];
+
+            let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
+            if (!desktop) desktop = GLib.get_home_dir();
+            let filename = desktop + '/' + ((this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json');
+
+            const doSave = (m) => {
+                try {
+                    this._saveJSON(filename, m);
+                    // Persist the last export directory
+                    try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._config.quick_export_filename = GLib.get_basename(filename); this._saveConfig(); } catch (e) {}
+
+                    // Show notification
+                    try { const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' }); notification.set_timeout(3000); notification.show(); } catch (e) {}
+
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+            };
+
+            if (!manifest || manifest.length === 0) {
+                // Prompt to generate from current system
+                let confirm = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest appears empty. Generate manifest from currently installed plugins and save to Desktop?' });
+                confirm.add_button('No', Gtk.ResponseType.CANCEL);
+                confirm.add_button('Yes', Gtk.ResponseType.OK);
+                confirm.connect('response', (d, resp) => {
+                    d.destroy();
+                    if (resp !== Gtk.ResponseType.OK) return;
+
+                    this._generateManifestFromInstalled((generated) => { doSave(generated); });
+                });
+                confirm.show();
+                return;
+            }
+
+            doSave(manifest);
+        } catch (e) {
+            let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+            dialog.add_button('OK', Gtk.ResponseType.OK);
+            dialog.connect('response', () => dialog.destroy());
+            dialog.show();
+        }
+    },
+
+    _applyTheme: function() {
+        let theme = (this._config && this._config.theme) ? this._config.theme : "system";
+        print('Applying theme, config requested: ' + theme);
+
+        // If configured to follow system, try to read GNOME's color-scheme
+        if (theme === "system") {
+            try {
+                if (!this._gnomeSettings) this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+                let cs = (this._gnomeSettings && this._gnomeSettings.get_string) ? this._gnomeSettings.get_string('color-scheme') : null;
+                if (cs === 'prefer-dark') theme = 'dark'; else theme = 'light';
+            } catch (e) {
+                // If GNOME schema not available, default to light
+                theme = 'light';
+            }
+        }
+
+        try {
+            // Prefer libadwaita/style-manager if available (GTK4 recommended)
+            if (Adw && Adw.StyleManager && Adw.StyleManager.get_default) {
+                try {
+                    print('Theme: using Adw.StyleManager to apply ' + theme);
+                    let sm = Adw.StyleManager.get_default();
+                    if (theme === 'dark') {
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFER_DARK); } catch (e) { /* ignore if constant missing */ }
+                    } else if (theme === 'light') {
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFERENCE_LIGHT); } catch (e) { /* ignore */ }
+                    } else {
+                        // system - let StyleManager follow system
+                        try { sm.set_color_scheme(Adw.ColorScheme.PREFERRED_LIGHT || Adw.ColorScheme.PREFERENCE_LIGHT); } catch (e) { /* ignore */ }
+                    }
+                } catch (e) { print('Adw.StyleManager.apply failed: ' + e.message); }
+            }
+
+            // Fall back to Gtk.Settings
+            if (typeof Gtk.Settings !== "undefined" && Gtk.Settings.get_default) {
+                let settings = Gtk.Settings.get_default();
+
+                if (settings) {
+                    if (theme === "dark") {
+                        settings.set_property("gtk-application-prefer-dark-theme", true);
+                    } else if (theme === "light") {
+                        settings.set_property("gtk-application-prefer-dark-theme", false);
+                    } else {
+                        // fallback
+                        settings.set_property("gtk-application-prefer-dark-theme", false);
+                    }
+                }
+            }
+        } catch (e) {
+            // Non-fatal
+        }
+
+        // Instead of destroying the main window (which can leave the UI
+        // in an inconsistent/unresponsive state), walk the widget tree and
+        // request redraws so GTK can re-evaluate styles. Also toggle both
+        // 'dark' and 'light' style classes to ensure explicit overrides and
+        // load/unload a lightweight CSS provider to force light styling when
+        // requested (works across themes that may otherwise stay dark).
+        try {
+            if (this._window) {
+                function walkAndUpdate(widget, addDark, addLight) {
+                    try { if (widget && typeof widget.queue_draw === 'function') widget.queue_draw(); } catch (e) {}
+
+                    try {
+                        if (widget && typeof widget.get_style_context === 'function') {
+                            let ctx = widget.get_style_context();
+
+                            // Explicitly set/clear both classes so we don't leave
+                            // stale classes that keep the dark styling active.
+                            if (addDark) { try { ctx.add_class('dark'); } catch (e) {} } else { try { ctx.remove_class('dark'); } catch (e) {} }
+                            if (addLight) { try { ctx.add_class('light'); } catch (e) {} } else { try { ctx.remove_class('light'); } catch (e) {} }
+                        }
+                    } catch (e) { }
+
+                    try {
+                        if (widget && typeof widget.get_children === 'function') {
+                            let kids = widget.get_children();
+                            if (kids && kids.length) {
+                                for (let i = 0; i < kids.length; i++) walkAndUpdate(kids[i], addDark, addLight);
+                            }
+                        }
+                    } catch (e) { }
+                }
+
+                let addDark = (theme === 'dark');
+                let addLight = (theme === 'light');
+                try { walkAndUpdate(this._window, addDark, addLight); } catch (e) { /* ignore */ }
+
+                // Manage a temporary CSS provider for explicit light forcing.
+                try {
+                    let display = (typeof Gdk.Display !== 'undefined' && Gdk.Display.get_default) ? Gdk.Display.get_default() : null;
+
+                    // Ensure we have a light provider created when needed
+                    if (theme === 'light') {
+                        if (!this._lightCssProvider) {
+                            try {
+                                this._lightCssProvider = Gtk.CssProvider.new();
+                                let css = "* { background-color: #ffffff !important; color: #111111 !important; }\\n" +
+                                          "window, .header-bar, headerbar, .headerbar { background-color: #ffffff !important; }\\n" +
+                                          "button, label, entry, treeview, listbox, box { background-color: transparent !important; color: #111111 !important; }";
+                                this._lightCssProvider.load_from_data(css);
+                            } catch (e) { this._lightCssProvider = null; }
+                        }
+
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.add_provider_for_display(display, this._lightCssProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION); } catch (e) { }
+                        }
+
+                        // Remove any dark provider if present
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._darkCssProvider); } catch (e) { }
+                        }
+                    } else if (theme === 'dark') {
+                        // Remove the light provider when entering dark
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._lightCssProvider); } catch (e) { }
+                        }
+
+                        // Optionally create a dark provider (not necessary in most cases)
+                        if (!this._darkCssProvider) {
+                            try {
+                                this._darkCssProvider = Gtk.CssProvider.new();
+                                let cssd = "* { background-color: #222222 !important; color: #ffffff !important; }";
+                                this._darkCssProvider.load_from_data(cssd);
+                            } catch (e) { this._darkCssProvider = null; }
+                        }
+
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.add_provider_for_display(display, this._darkCssProvider, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION); } catch (e) { }
+                        }
+                    } else {
+                        // system - remove both providers
+                        if (display && this._lightCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._lightCssProvider); } catch (e) { }
+                        }
+                        if (display && this._darkCssProvider) {
+                            try { Gtk.StyleContext.remove_provider_for_display(display, this._darkCssProvider); } catch (e) { }
+                        }
+                    }
+                } catch (e) { /* ignore */ }
+
+                try { this._window.present(); } catch (e) { /* ignore */ }
+            }
+        } catch (e) {
+            // Non-fatal
+        }
+    },
+
+    _watchSystemColorScheme: function() {
+        try {
+            if (this._gnomeSettings) return;
+            this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+            this._gnomeSettings.connect('changed::color-scheme', () => {
+                if (this._config && this._config.theme === 'system') this._applyTheme();
+            });
+            // Apply immediately
+            if (this._config && this._config.theme === 'system') this._applyTheme();
+        } catch (e) {
+            // Not available — ignore
+        }
     },
 
     _showOptionsDialog: function() {
@@ -941,11 +1489,532 @@ const Application = new Lang.Class({
         content.set_margin_top(20);
         content.set_margin_bottom(20);
 
-        let label = new Gtk.Label({ label: "No options available." });
-        content.append(label);
+        // Theme follows GNOME system color-scheme (no manual toggle)
+        let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 8 });
+
+        let infoLabel = new Gtk.Label({ label: "Theme: follows GNOME system color scheme (Appearance → Style)." });
+        infoLabel.set_halign(Gtk.Align.START);
+        infoLabel.set_wrap(true);
+
+        let currentLabel = new Gtk.Label({ label: "Current: determining..." });
+        currentLabel.set_halign(Gtk.Align.START);
+
+        // Manifest export/import helpers
+        let exportButton = new Gtk.Button({ label: 'Export manifest' });
+        exportButton.connect('clicked', () => this._exportManifest());
+
+        let quickSaveButton = new Gtk.Button({ label: 'Save manifest to Desktop' });
+        quickSaveButton.connect('clicked', () => this._quickSaveManifestToDesktop());
+
+        // Quick-save filename preference
+        let fnameBox = new Gtk.Box({ orientation: Gtk.Orientation.HORIZONTAL, spacing: 8 });
+        let fnameLabel = new Gtk.Label({ label: 'Quick save filename:', halign: Gtk.Align.START });
+        fnameLabel.set_xalign(0);
+        let fnameEntry = new Gtk.Entry({ hexpand: true });
+        let currentName = (this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json';
+        fnameEntry.set_text(currentName);
+        fnameEntry.connect('changed', (e) => {
+            try { this._config = this._config || {}; this._config.quick_export_filename = e.get_text(); this._saveConfig(); } catch (err) { /* ignore */ }
+        });
+        fnameBox.append(fnameLabel);
+        fnameBox.append(fnameEntry);
+
+        let importButton = new Gtk.Button({ label: 'Import manifest' });
+        importButton.connect('clicked', () => this._importManifest());
+
+        vbox.append(infoLabel);
+        vbox.append(currentLabel);
+        vbox.append(exportButton);
+        vbox.append(quickSaveButton);
+        vbox.append(fnameBox);
+        vbox.append(importButton);
+
+        // Determine current effective system color-scheme
+        try {
+            let effective = 'Light (default)';
+            if (!this._gnomeSettings) this._gnomeSettings = new Gio.Settings({ schema: 'org.gnome.desktop.interface' });
+            let cs = this._gnomeSettings.get_string('color-scheme');
+            if (cs === 'prefer-dark') effective = 'Dark (system)'; else effective = 'Light (system)';
+            currentLabel.set_label('Current: ' + effective);
+        } catch (e) {
+            currentLabel.set_label('Current: unknown (GNOME settings not found)');
+        }
+
+        content.append(vbox);
 
         dialog.connect("response", () => dialog.destroy());
         dialog.show();
+    },
+
+    _appendToManifest: function(plugin) {
+        try {
+            let datadir = GLib.get_user_data_dir() + "/fedy";
+            let path = datadir + "/manifest.json";
+
+            let manifest = this._loadJSON(path) || [];
+
+            // Build entry with the canonical metadata we can later act upon
+            let entry = {
+                slug: plugin.slug || null,
+                label: plugin.label || null,
+                category: plugin.category || null,
+                packages: plugin.packages || null,
+                flatpak: plugin.flatpak || null,
+                exec_command: (plugin.scripts && plugin.scripts.exec) ? plugin.scripts.exec.command : null,
+                installed_at: (new Date()).toISOString()
+            };
+
+            // Deduplicate by slug (replace) or by exec_command if slug missing
+            let idx = -1;
+
+            for (let i = 0; i < manifest.length; i++) {
+                if (entry.slug && manifest[i].slug === entry.slug) { idx = i; break; }
+                if (!entry.slug && entry.exec_command && manifest[i].exec_command === entry.exec_command) { idx = i; break; }
+            }
+
+            if (idx === -1) manifest.push(entry); else manifest[idx] = entry;
+
+            this._saveJSON(path, manifest);
+        } catch (e) {
+            print('Error appending to manifest: ' + e.message);
+        }
+    },
+
+    _exportManifest: function() {
+        let datadir = GLib.get_user_data_dir() + "/fedy";
+        let path = datadir + "/manifest.json";
+
+        let manifest = this._loadJSON(path) || [];
+
+        if (!manifest || manifest.length === 0) {
+            let confirm = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Manifest appears empty. Would you like to generate it from currently installed plugins before exporting?' });
+            confirm.add_button('No', Gtk.ResponseType.CANCEL);
+            confirm.add_button('Yes', Gtk.ResponseType.OK);
+
+            confirm.connect('response', (d, resp) => {
+                d.destroy();
+                if (resp !== Gtk.ResponseType.OK) return;
+
+                this._generateManifestFromInstalled((generated) => {
+                    let info = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Generated ' + generated.length + ' entries from installed plugins. Re-opening export dialog.' });
+                    info.add_button('OK', Gtk.ResponseType.OK);
+                    info.connect('response', () => { info.destroy(); this._exportManifest(); });
+                    info.show();
+                });
+            });
+
+            confirm.show();
+            return;
+        }
+
+        let fc = new Gtk.FileChooserNative({
+            title: "Export manifest",
+            action: Gtk.FileChooserAction.SAVE,
+            transient_for: this._window
+        });
+
+        fc.set_current_name('fedy-manifest.json');
+
+        // Default the save dialog to either the last export directory (if set) or the user's Documents folder (fallback to Home)
+        try {
+            let defaultDir = (this._config && this._config.last_export_dir) ? this._config.last_export_dir : (GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir());
+            if (defaultDir) fc.set_current_folder(defaultDir);
+        } catch (e) {
+            // ignore if not available
+        }
+
+        // Provide a quick option dialog: Cancel | Save to Desktop | Choose location...
+        let opt = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Where would you like to save the manifest?' });
+        opt.add_button('Cancel', Gtk.ResponseType.CANCEL);
+        opt.add_button('Save to Desktop', Gtk.ResponseType.APPLY);
+        opt.add_button('Choose location...', Gtk.ResponseType.OK);
+
+        opt.connect('response', (dlg, resp) => {
+            dlg.destroy();
+
+            if (resp === Gtk.ResponseType.CANCEL) return;
+
+            if (resp === Gtk.ResponseType.APPLY) {
+                // Save directly to Desktop (fallback to Documents/Home) using configured filename
+                let desktop = GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DESKTOP) || GLib.get_user_special_dir(GLib.UserDirectory.DIRECTORY_DOCUMENTS) || GLib.get_home_dir();
+                if (!desktop) desktop = GLib.get_home_dir();
+                let fname = (this._config && this._config.quick_export_filename) ? this._config.quick_export_filename : 'fedy-manifest.json';
+                let filename = desktop + '/' + fname;
+                try {
+                    this._saveJSON(filename, manifest);
+
+                    // Persist last export directory and filename
+                    try { this._config = this._config || {}; this._config.last_export_dir = desktop; this._config.quick_export_filename = fname; this._saveConfig(); } catch (e) {}
+
+                    // Show a desktop notification if available
+                    try {
+                        const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' });
+                        notification.set_timeout(3000);
+                        notification.show();
+                    } catch (e) { /* ignore notification failures */ }
+
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+
+                return;
+            }
+
+            // Otherwise, show file chooser to pick a custom location
+            fc.connect('response', (chooser, response) => {
+                    if (response === Gtk.ResponseType.ACCEPT) {
+                    let filename = chooser.get_file().get_path();
+                    try {
+                        this._saveJSON(filename, manifest);
+
+                        // Persist the last export directory and filename used
+                        try { this._config = this._config || {}; this._config.last_export_dir = GLib.path_get_dirname(filename); this._config.quick_export_filename = GLib.path_get_basename(filename); this._saveConfig(); } catch (e) {}
+
+                        // Show a desktop notification if available
+                        try {
+                            const notification = new Notify.Notification({ summary: 'Manifest exported', body: filename, icon_name: 'fedy' });
+                            notification.set_timeout(3000);
+                            notification.show();
+                        } catch (e) { /* ignore notification failures */ }
+
+                        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Exported manifest to ' + filename });
+                        dialog.add_button('OK', Gtk.ResponseType.OK);
+                        dialog.connect('response', () => dialog.destroy());
+                        dialog.show();
+                    } catch (e) {
+                        let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to export manifest: ' + e.message });
+                        dialog.add_button('OK', Gtk.ResponseType.OK);
+                        dialog.connect('response', () => dialog.destroy());
+                        dialog.show();
+                    }
+                }
+                chooser.destroy();
+            });
+
+            fc.show();
+        });
+
+        opt.show();
+    },
+
+    _installPluginsFromManifest: function(entries) {
+        let pluginsToInstall = [];
+        let skipped = [];
+        this._pluginQueue = [];
+        // Reset progress counters
+        this._totalPluginsToInstall = 0;
+        this._installedPluginsCount = 0;
+        this._importProgressDialog = null;
+        this._importProgressBar = null;
+        this._importProgressLabel = null;
+
+        // 1. Sort entries
+        for (let entry of entries) {
+            let found = false;
+            // Handle plugins identified by slug
+            if (entry.slug) {
+                // Search all categories
+                for (let category in this._plugins) {
+                    if (this._plugins[category][entry.slug]) {
+                        pluginsToInstall.push(this._plugins[category][entry.slug]);
+                        found = true;
+                        break;
+                    }
+                }
+            }
+            // Also handle plugins by label if slug not found (legacy support)
+            if (!found && entry.label) {
+                for (let category in this._plugins) {
+                    for (let p in this._plugins[category]) {
+                        if (this._plugins[category][p].label === entry.label) {
+                             pluginsToInstall.push(this._plugins[category][p]);
+                             found = true;
+                             break;
+                        }
+                    }
+                    if (found) break;
+                }
+            }
+
+            if (!found) {
+                let cmd = null;
+                if (entry.flatpak && entry.flatpak.app_id) {
+                    let remote = entry.flatpak.remote ? (entry.flatpak.remote + ' ') : '';
+                    cmd = 'flatpak install --user -y ' + remote + entry.flatpak.app_id;
+                } else if (entry.packages && entry.packages.length) {
+                    cmd = 'pkexec dnf -y install ' + entry.packages.join(' ');
+                } else if (entry.exec_command) {
+                     cmd = entry.exec_command;
+                }
+                
+                if (cmd) {
+                    skipped.push({ entry: entry, command: cmd });
+                }
+            }
+        }
+
+        // 2. Queue valid plugins
+        if (pluginsToInstall.length > 0) {
+            this._totalPluginsToInstall = pluginsToInstall.length;
+            this._installedPluginsCount = 0;
+
+            // Create progress dialog
+            let dialog = new Gtk.Window({ title: "Installing Plugins", modal: true, transient_for: this._window, default_width: 400, default_height: 100 });
+            dialog.set_resizable(false);
+            
+            // Handle old vs new window closing
+            if (typeof dialog.set_deletable === "function") dialog.set_deletable(false);
+
+            let vbox = new Gtk.Box({ orientation: Gtk.Orientation.VERTICAL, spacing: 12, margin_bottom: 24, margin_top: 24, margin_start: 24, margin_end: 24 });
+            
+            let label = new Gtk.Label({ label: "Preparing installation...", xalign: 0 });
+            this._importProgressLabel = label;
+            vbox.append(label);
+
+            let pbar = new Gtk.ProgressBar();
+            pbar.set_show_text(true);
+            this._importProgressBar = pbar;
+            vbox.append(pbar);
+
+            dialog.set_child(vbox);
+            dialog.present();
+
+            this._importProgressDialog = dialog;
+
+            for (let p of pluginsToInstall) {
+                 this._pluginQueue.push(p);
+            }
+            // Start processing with a small delay to let UI render
+            GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+                this._processPluginQueue();
+                return false;
+            });
+        }
+
+        // 3. Handle skipped entries
+        if (skipped.length > 0) {
+            let parentWindow = this._window;
+
+            let dialog = new Gtk.MessageDialog({
+                modal: true,
+                transient_for: parentWindow,
+                text: "The following " + skipped.length + " entries are not in the plugin library.\n" +
+                      "They can be installed via fallback commands."
+            });
+
+            // Try to add a scrollable list of commands to the dialog area
+            try {
+                let contentArea = dialog.get_content_area();
+                let scroll = new Gtk.ScrolledWindow();
+                scroll.set_min_content_height(200);
+                // Try GTK4 prop, if fails catch block handles safely
+                if (typeof scroll.set_propagate_natural_height === 'function') {
+                    scroll.set_propagate_natural_height(true);
+                }
+                
+                let textView = new Gtk.TextView({
+                    editable: false,
+                    monospace: true
+                });
+                // Formatting: Show command
+                let text = skipped.map(s => "# " + (s.entry.label || s.entry.slug) + "\n" + s.command).join("\n\n");
+                textView.get_buffer().set_text(text, -1);
+                
+                if (typeof scroll.set_child === 'function') { // GTK4
+                    scroll.set_child(textView);
+                    contentArea.append(scroll);
+                } else { // GTK3
+                    scroll.add(textView);
+                    contentArea.pack_start(scroll, true, true, 5);
+                    contentArea.show_all();
+                }
+            } catch(e) { /* ignore layout errors */ }
+
+            dialog.add_button('Cancel', Gtk.ResponseType.CANCEL);
+            let btnCopy = dialog.add_button('Copy Commands', Gtk.ResponseType.APPLY);
+            let btnRun = dialog.add_button('Run Commands', Gtk.ResponseType.ACCEPT);
+            
+            try { btnRun.get_style_context().add_class('suggested-action'); } catch(e){}
+
+            dialog.connect('response', (d, response) => {
+                if (response === Gtk.ResponseType.ACCEPT) {
+                     d.destroy();
+                     // Run the fallback tasks
+                     this._runFallbackTasks(skipped);
+                } else if (response === Gtk.ResponseType.APPLY) {
+                     // Copy to clipboard
+                     let txt = skipped.map(s => s.command).join("\n");
+                     try {
+                         Gdk.Display.get_default().get_clipboard().set_text(txt);
+                     } catch(err) {
+                         // GTK3 fallback or error
+                         try { 
+                             let clip = Gtk.Clipboard.get_default(Gdk.Display.get_default());
+                             clip.set_text(txt, -1);
+                         } catch(e2) {}
+                     }
+                     // Keep dialog open
+                } else {
+                     d.destroy();
+                }
+            });
+
+            dialog.show();
+        } else if (pluginsToInstall.length === 0) {
+             let info = new Gtk.MessageDialog({ 
+                 modal: true, 
+                 transient_for: this._window, 
+                 text: 'Manifest contained no valid plugins or fallback entries found.'
+             });
+             info.add_button('OK', Gtk.ResponseType.OK);
+             info.connect('response', () => info.destroy());
+             info.show();
+        }
+    },
+
+    _processPluginQueue: function() {
+        if (!this._pluginQueue || this._pluginQueue.length === 0) {
+            // Queue finished.
+            if (this._importProgressDialog) {
+                this._importProgressDialog.destroy();
+                this._importProgressDialog = null;
+                
+                let done = new Gtk.MessageDialog({
+                    modal: true,
+                    transient_for: this._window,
+                    text: "Import completed successfully."
+                });
+                done.add_button('OK', Gtk.ResponseType.OK);
+                done.connect('response', () => done.destroy());
+                done.show();
+            }
+            return;
+        }
+
+        let plugin = this._pluginQueue[0];
+        
+        // Update UI
+        if (this._importProgressLabel) {
+            this._importProgressLabel.set_text("Installing " + plugin.label + "...");
+        }
+        if (this._importProgressBar && this._totalPluginsToInstall > 0) {
+            let fraction = this._installedPluginsCount / this._totalPluginsToInstall;
+            this._importProgressBar.set_fraction(fraction);
+            this._importProgressBar.set_text(Math.round(fraction * 100) + "%");
+        }
+
+        let onDone = (success) => {
+            this._installedPluginsCount++;
+            
+            // Check queue length again before shifting just in case
+             if (this._pluginQueue.length > 0) {
+                 this._pluginQueue.shift();
+             }
+
+            // Update bar to reflect completion of this item
+            if (this._importProgressBar && this._totalPluginsToInstall > 0) {
+                let fraction = this._installedPluginsCount / this._totalPluginsToInstall;
+                this._importProgressBar.set_fraction(fraction);
+                this._importProgressBar.set_text(Math.round(fraction * 100) + "%");
+            }
+            
+            // Process next
+            this._processPluginQueue();
+        };
+
+        try {
+            if (plugin.flatpak) {
+                 let app_id = plugin.flatpak.app_id;
+                 let installCmd = "flatpak install --user -y flathub " + app_id;
+                 // Blindly try install (idempotent)
+                 this._executeCommand(null, installCmd, (pid, status) => {
+                     onDone(status === 0);
+                 });
+            } else if (plugin.scripts && plugin.scripts.exec) {
+                 // Check if installed first to avoid reinstalling working apps
+                 this._getPluginStatus(plugin, (action, status) => {
+                     // If installed, action is usually uninstall script or null/status=0
+                     // If NOT installed, action is install script
+                     
+                     // If action matches uninstall script, we skip
+                     if (action === plugin.scripts.uninstall || (status === 0 && !action.command)) {
+                         onDone(true); 
+                         return;
+                     }
+                     
+                     if (action && action.command) {
+                         this._runPluginCommand(plugin, action.command, (pid, status) => {
+                             onDone(status === 0);
+                         }, this._executeCommand); // Use _executeCommand directly instead of _queueCommand to avoid recursive specific queue issues
+                     } else {
+                         // Cannot install?
+                         onDone(false);
+                     }
+                 });
+            } else {
+                onDone(true);
+            }
+        } catch (e) {
+            print("Error processing plugin queue for " + plugin.label + ": " + e.message);
+            onDone(false);
+        }
+    },
+
+    _runFallbackTasks: function(tasks) {
+        if (tasks.length === 0) {
+            let done = new Gtk.MessageDialog({
+                modal: true,
+                transient_for: this._window,
+                text: "All fallback commands processed."
+            });
+            done.add_button('OK', Gtk.ResponseType.OK);
+            done.connect('response', () => done.destroy());
+            done.show();
+            return;
+        }
+
+        let task = tasks.shift();
+        let cmd = task.command;
+        let label = task.entry.label || task.entry.slug;
+
+        // Execute command using existing async helper
+        this._executeCommand(null, cmd, (pid, status) => {
+            if (status !== 0) {
+                 // Log failure?
+            }
+            // Recurse
+            this._runFallbackTasks(tasks);
+        }, this);
+    },
+
+    _importManifest: function() {
+        let fc = new Gtk.FileChooserNative({ title: 'Import manifest', action: Gtk.FileChooserAction.OPEN, transient_for: this._window });
+
+        fc.connect('response', (chooser, response) => {
+            if (response === Gtk.ResponseType.ACCEPT) {
+                let filename = chooser.get_file().get_path();
+                try {
+                    let manifest = this._loadJSON(filename) || [];
+                    this._installPluginsFromManifest(manifest);
+                } catch (e) {
+                    let dialog = new Gtk.MessageDialog({ modal: true, transient_for: this._window, text: 'Failed to import manifest: ' + e.message });
+                    dialog.add_button('OK', Gtk.ResponseType.OK);
+                    dialog.connect('response', () => dialog.destroy());
+                    dialog.show();
+                }
+            }
+
+            chooser.destroy();
+        });
+
+        fc.show();
     },
 
     _setFlatpakButtonState: function(button, plugin, spinner) {
@@ -1002,21 +2071,33 @@ const Application = new Lang.Class({
         // First check user install; if not installed for user, check system-wide
         this._executeCommand(null, "flatpak info --user " + app_id, (pid, status) => {
             if (status === 0) {
-                // installed for user
-                button.label = "Uninstall";
+                // installed for user — enable uninstall action and mark destructive
+                button.set_label("Uninstall");
+                try {
+                    button.get_style_context().remove_class('suggested-action');
+                    button.get_style_context().add_class('destructive-action');
+                } catch (e) {}
+                try { button.set_tooltip_text(null); } catch (e) {}
+                button.set_sensitive(true);
+                spinner.stop();
             } else {
                 // not installed for user — check system
                 this._executeCommand(null, "flatpak info " + app_id, (pid2, status2) => {
                     if (status2 === 0) {
                         // Installed system-wide — we cannot safely uninstall system
                         // installs from the user context. Mark as installed and
-                        // disable the button with an explanatory tooltip.
+                        // disable the button with an explanatory tooltip that
+                        // also includes the apt command users can run as root.
                         button.set_label("Installed (system)");
                         try {
                             button.get_style_context().remove_class('suggested-action');
                             button.get_style_context().remove_class('destructive-action');
                         } catch (e) {}
-                        try { button.set_tooltip_text('This Flatpak is installed system-wide and cannot be removed here.'); } catch (e) {}
+                        try {
+                            let tip = 'This Flatpak is installed system-wide and cannot be removed here.\n' +
+                                      'To remove it, run: sudo flatpak uninstall --system -y ' + app_id;
+                            button.set_tooltip_text(tip);
+                        } catch (e) {}
                         button.set_sensitive(false);
                     } else {
                         button.set_label("Install");
@@ -1030,24 +2111,28 @@ const Application = new Lang.Class({
                     spinner.stop();
                 }, hideOutputFlags);
 
+                // Sanity check: if the app is not installed for user but is installed
+                // system-wide, show 'Installed (system)' and disable the button.
+                this._executeCommand(null, "flatpak info --user " + app_id, (pidu, statusu) => {
+                    if (statusu !== 0) {
+                        this._executeCommand(null, "flatpak info " + app_id, (pids, statuss) => {
+                            if (statuss === 0) {
+                                try {
+                                    button.set_label("Installed (system)");
+                                    try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
+                                    try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
+                                    try { button.set_tooltip_text('This Flatpak is installed system-wide and cannot be removed here.\nTo remove it, run: sudo flatpak uninstall --system -y ' + app_id); } catch (e) {}
+                                    button.set_sensitive(false);
+                                } catch (e) {}
+                            }
+                        }, hideOutputFlags);
+                    }
+                }, hideOutputFlags);
+
                 return;
             }
-
-            // installed for user — apply classes and stop
-            try {
-                button.get_style_context().remove_class('suggested-action');
-                button.get_style_context().remove_class('destructive-action');
-                if (button.label === 'Install') {
-                    button.get_style_context().add_class('suggested-action');
-                } else {
-                    button.get_style_context().add_class('destructive-action');
-                }
-            } catch (e) {
-                // ignore if style_context not available
-            }
-            button.sensitive = true;
-            spinner.stop();
         }, hideOutputFlags);
+
     },
 
     _handleFlatpakTask: function(button, spinner, plugin) {
@@ -1190,6 +2275,8 @@ const Application = new Lang.Class({
 
                         plugins[parsed.category][plugin] = parsed;
                         plugins[parsed.category][plugin].path = plugindir + "/" + name;
+                        // Record the plugin slug (folder name) so we can reference it later
+                        plugins[parsed.category][plugin].slug = plugin;
                     }
                 }
             }
@@ -1220,6 +2307,15 @@ const Application = new Lang.Class({
         let user = this._loadJSON(GLib.get_user_data_dir() + "/fedy/config.json");
 
         this._extendObject(this._config, system, user);
+
+        // Ensure a sensible default
+        if (!this._config.theme) this._config.theme = "system";
+
+        // Apply configured theme as early as possible
+        this._applyTheme();
+
+        // Start watching GNOME color-scheme changes so 'system' follows it live
+        try { this._watchSystemColorScheme(); } catch (e) { /* ignore */ }
     },
 });
 

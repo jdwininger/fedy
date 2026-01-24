@@ -1,0 +1,12 @@
+{
+  "label": "Amiberry",
+  "description": "Amiberry is an Amiga emulator optimized for fast performance.",
+  "category": "Emulators",
+  "icon": "amiberry",
+  "license": "GPL-2.0-or-later",
+  "flatpak": {
+    "app_id": "com.blitterstudio.amiberry",
+    "remote": "flathub",
+    "user_install": true
+  }
+}

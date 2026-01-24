@@ -1,0 +1,24 @@
+{
+	"icon": "java",
+	"label": "Java (OpenJDK - latest)",
+	"description": "Installs the latest OpenJDK runtime available via the distribution packages.",
+	"license": "OpenJDK",
+	"category": "Utilities",
+	"hint": "Installs system Java runtime (OpenJDK latest; no GUI).",
+	"scripts": {
+		"status": { "command": "bash status.sh" },
+		"status_jdk": { "command": "bash status-jdk.sh" },
+		"exec": {
+			"label": "Install Runtime",
+			"command": "run-as-root -s install.sh"
+		},
+		"jdk": {
+			"label": "Install JDK",
+			"command": "run-as-root -s install-jdk.sh"
+		},
+		"undo": {
+			"label": "Remove",
+			"command": "run-as-root -s uninstall.sh"
+		}
+	}
+}

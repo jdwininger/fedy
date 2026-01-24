@@ -1,11 +1,12 @@
 {
-	"icon": "azahar",
-	"label": "Azahar",
-	"description": "Azahar is a Nintendo 3DS emulator.",		
-	"license": "GNU General Public License, version 2",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "org.azahar_emu.Azahar",
-		"remote": "flathub"
-	}
+  "icon": "azahar",
+  "label": "Azahar",
+  "description": "Azahar is a Nintendo 3DS emulator.",
+  "license": "GNU General Public License, version 2",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "org.azahar_emu.Azahar",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

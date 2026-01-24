@@ -1,16 +1,17 @@
 {
-	"icon": "steam",
-	"label": "Steam (Flathub)",
-	"description": "Install Steam from Flathub (Flatpak).",
-	"license": "Proprietary",
-	"category": "Games",
-	"flatpak": {
-		"app_id": "com.valvesoftware.Steam",
-		"remote": "flathub"
-	},
-	"scripts": {
-		"status": {
-			"command": "bash status.sh"
-		}
-	}
+  "icon": "steam",
+  "label": "Steam",
+  "description": "Install Steam from Flathub (Flatpak).",
+  "license": "Proprietary",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "com.valvesoftware.Steam",
+    "remote": "flathub",
+    "user_install": true
+  },
+  "scripts": {
+    "status": {
+      "command": "bash status.sh"
+    }
+  }
 }

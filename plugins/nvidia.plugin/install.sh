@@ -37,7 +37,6 @@ PACKAGES=(
   vulkan
   xorg-x11-drv-nvidia-cuda-libs
   xorg-x11-drv-nvidia-libs.i686
-  nvidia-vaapi-driver
   libva-utils
   vdpauinfo
 )

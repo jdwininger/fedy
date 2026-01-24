@@ -1,0 +1,12 @@
+{
+  "icon": "vinegar",
+  "label": "Vinegar",
+  "description": "Vinegar - Roblox Studio compatibility layer for Linux.",
+  "license": "Open Source",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "org.vinegarhq.Vinegar",
+    "remote": "flathub",
+    "user_install": true
+  }
+}

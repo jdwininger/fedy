@@ -1,0 +1,12 @@
+{
+  "icon": "itch",
+  "label": "itch.io",
+  "description": "itch.io - Browse and install games from itch.io.",
+  "license": "Open Source",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "io.itch.itch",
+    "remote": "flathub",
+    "user_install": true
+  }
+}
