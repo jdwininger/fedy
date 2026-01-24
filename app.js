@@ -2104,6 +2104,24 @@ const Application = new Lang.Class({
                     spinner.stop();
                 }, hideOutputFlags);
 
+                // Sanity check: if the app is not installed for user but is installed
+                // system-wide, show 'Installed (system)' and disable the button.
+                this._executeCommand(null, "flatpak info --user " + app_id, (pidu, statusu) => {
+                    if (statusu !== 0) {
+                        this._executeCommand(null, "flatpak info " + app_id, (pids, statuss) => {
+                            if (statuss === 0) {
+                                try {
+                                    button.set_label("Installed (system)");
+                                    try { button.get_style_context().remove_class('suggested-action'); } catch (e) {}
+                                    try { button.get_style_context().remove_class('destructive-action'); } catch (e) {}
+                                    try { button.set_tooltip_text('This Flatpak is installed system-wide and cannot be removed here.\nTo remove it, run: sudo flatpak uninstall --system -y ' + app_id); } catch (e) {}
+                                    button.set_sensitive(false);
+                                } catch (e) {}
+                            }
+                        }, hideOutputFlags);
+                    }
+                }, hideOutputFlags);
+
                 return;
             }
         }, hideOutputFlags);
