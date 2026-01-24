@@ -7,6 +7,7 @@
 build/
 dist/
 out/
+tools/
 
 # Temporary files
 *.tmp
@@ -117,3 +118,4 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+patches/
