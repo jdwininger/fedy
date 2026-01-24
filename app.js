@@ -2071,8 +2071,15 @@ const Application = new Lang.Class({
         // First check user install; if not installed for user, check system-wide
         this._executeCommand(null, "flatpak info --user " + app_id, (pid, status) => {
             if (status === 0) {
-                // installed for user
-                button.label = "Uninstall";
+                // installed for user — enable uninstall action and mark destructive
+                button.set_label("Uninstall");
+                try {
+                    button.get_style_context().remove_class('suggested-action');
+                    button.get_style_context().add_class('destructive-action');
+                } catch (e) {}
+                try { button.set_tooltip_text(null); } catch (e) {}
+                button.set_sensitive(true);
+                spinner.stop();
             } else {
                 // not installed for user — check system
                 this._executeCommand(null, "flatpak info " + app_id, (pid2, status2) => {
