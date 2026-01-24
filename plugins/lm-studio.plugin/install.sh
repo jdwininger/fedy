@@ -12,7 +12,7 @@ mkdir -p "$(dirname "$DESKTOP_FILE")"
 
 # Download the AppImage and preserve the upstream filename if present
 echo "Downloading LM Studio..."
-wget --content-disposition -P "$INSTALL_DIR" "https://lmstudio.ai/download/latest/linux/x64"
+wget --content-disposition --trust-server-names -P "$INSTALL_DIR" "https://lmstudio.ai/download/latest/linux/x64"
 
 # Find the downloaded AppImage (accept versioned filenames)
 shopt -s nullglob
