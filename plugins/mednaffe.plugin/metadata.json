@@ -1,0 +1,12 @@
+{
+  "label": "Mednaffe (Flathub)",
+  "description": "Mednaffe is a frontend for the Mednafen multi-system emulator.",
+  "category": "Emulators",
+  "icon": "icon",
+  "license": "GPL-2.0-or-later",
+  "flatpak": {
+    "app_id": "com.github.AmatCoder.mednaffe",
+    "remote": "flathub",
+    "user_install": true
+  }
+}

@@ -4,7 +4,7 @@
   "description": "AppImageLauncher — integrates AppImages with the system. Installs the system RPM and provides user integration.",
   "hint": "System-level service (installs system RPM); this plugin has no GUI.",
   "license": "GPL-3.0",
-  "icon": "appimagelauncher",
+  "icon": "AppImageLauncher",
   "category": "Utilities",
   "homepage": "https://github.com/TheAssassin/AppImageLauncher",
   "status": { "command": "bash -lc 'command -v appimagelauncher >/dev/null 2>&1 && exit 0; ls /usr/bin/*appimagelauncher* >/dev/null 2>&1 && exit 0; ls /usr/local/bin/*appimagelauncher* >/dev/null 2>&1 && exit 0; rpm -qa | grep -i -E \"appim.*launch|appimage.*launch|appimagelauncher\" >/dev/null 2>&1 && exit 0; ls /usr/share/applications/*appimagelauncher*.desktop >/dev/null 2>&1 && exit 0; exit 1'" },

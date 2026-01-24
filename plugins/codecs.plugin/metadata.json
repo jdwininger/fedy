@@ -1,5 +1,5 @@
 {
-	"icon": "applications-multimedia",
+	"icon": "codec",
 	"label": "Multimedia codecs",
 	"description": "Utilized by multimedia applications to encode or decode audio or video streams.",
 	"license": [ "BSD", "GPLv2", "LGPLv2", "GFDL" ],

@@ -1,11 +1,12 @@
 {
-	"icon": "shadps4",
-	"label": "shadPS4",
-	"description": "shadPS4 is a PlayStation 4 emulator for Windows, Linux, and macOS.",
-	"license": "GNU General Public License version 2.0 only",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "net.shadps4.shadPS4",
-		"remote": "flathub"
-	}
+  "icon": "shadps4",
+  "label": "shadPS4",
+  "description": "shadPS4 is a PlayStation 4 emulator for Windows, Linux, and macOS.",
+  "license": "GNU General Public License version 2.0 only",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "net.shadps4.shadPS4",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

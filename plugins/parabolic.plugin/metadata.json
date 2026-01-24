@@ -1,11 +1,12 @@
 {
-	"icon": "parabolic",
-	"label": "Parabolic",
-	"description": "Parabolic is an online video downloader.",
-	"license": "Open Source",
-	"category": "Apps",
-	"flatpak": {
-		"app_id": "org.nickvision.tubeconverter",
-		"remote": "flathub"
-	}
+  "icon": "parabolic",
+  "label": "Parabolic",
+  "description": "Parabolic is an online video downloader.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "org.nickvision.tubeconverter",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

@@ -1,10 +1,14 @@
 {
-    "slug": "android-studio",
-    "label": "Android Studio",
-    "description": "The official Integrated Development Environment (IDE) for Android app development.",
-    "license": "Proprietary",
-    "icon": "com.google.AndroidStudio",
-    "category": "Development Tools",
-    "homepage": "https://developer.android.com/studio",
-    "flatpak": "com.google.AndroidStudio"
+  "slug": "android-studio",
+  "label": "Android Studio",
+  "description": "The official Integrated Development Environment (IDE) for Android app development.",
+  "license": "Proprietary",
+  "icon": "com.google.AndroidStudio",
+  "category": "Development Tools",
+  "homepage": "https://developer.android.com/studio",
+  "flatpak": {
+    "app_id": "com.google.AndroidStudio",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

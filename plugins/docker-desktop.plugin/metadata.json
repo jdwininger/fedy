@@ -7,6 +7,7 @@
     "category": "Development Tools",
     "homepage": "https://www.docker.com/products/docker-desktop/",
     "scripts": {
+        "status": { "command": "bash status.sh" },
         "exec": { "label": "Install", "command": "run-as-root -s install.sh" },
         "undo": { "label": "Remove", "command": "run-as-root -s uninstall.sh" }
     }

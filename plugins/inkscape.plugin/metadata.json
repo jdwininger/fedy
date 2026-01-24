@@ -1,11 +1,12 @@
 {
-	"icon": "inkscape",
-	"label": "Inkscape",
-	"description": "Inkscape is a professional vector graphics editor.",
-	"license": "Open Source",
-	"category": "Apps",
-	"flatpak": {
-		"app_id": "org.inkscape.Inkscape",
-		"remote": "flathub"
-	}
+  "icon": "inkscape",
+  "label": "Inkscape",
+  "description": "Inkscape is a professional vector graphics editor.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "org.inkscape.Inkscape",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

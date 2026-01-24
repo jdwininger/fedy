@@ -1,11 +1,12 @@
 {
-	"icon": "transmission",
-	"label": "Transmission",
-	"description": "Transmission BitTorrent client.",
-	"license": "Open Source",
-	"category": "Apps",
-	"flatpak": {
-		"app_id": "com.transmissionbt.Transmission",
-		"remote": "flathub"
-	}
+  "icon": "transmission",
+  "label": "Transmission",
+  "description": "Transmission BitTorrent client.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "com.transmissionbt.Transmission",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

@@ -1,11 +1,12 @@
 {
-	"icon": "ppsspp",
-	"label": "PPSSPP",
-	"description": "PPSSPP is a PSP emulator for playing PSP games on your computer.",
-	"license": "GNU General Public License, version 2",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "org.ppsspp.PPSSPP",
-		"remote": "flathub"
-	}
+  "icon": "ppsspp",
+  "label": "PPSSPP",
+  "description": "PPSSPP is a PSP emulator for playing PSP games on your computer.",
+  "license": "GNU General Public License, version 2",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "org.ppsspp.PPSSPP",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

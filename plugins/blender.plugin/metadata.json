@@ -1,11 +1,12 @@
 {
-	"icon": "blender",
-	"label": "Blender",
-	"description": "Blender 3D creation, modeling and rendering suite.",
-	"license": "Open Source",
-	"category": "Apps",
-	"flatpak": {
-		"app_id": "org.blender.Blender",
-		"remote": "flathub"
-	}
+  "icon": "blender",
+  "label": "Blender",
+  "description": "Blender 3D creation, modeling and rendering suite.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "org.blender.Blender",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

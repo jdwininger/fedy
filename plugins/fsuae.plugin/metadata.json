@@ -1,11 +1,12 @@
 {
-	"icon": "fsuae",
-	"label": "FS-UAE",
-	"description": "FS-UAE is a cross-platform Amiga emulator.",
-	"license": "GNU General Public License v2.0 or later",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "net.fsuae.FS-UAE",
-		"remote": "flathub"
-	}
+  "icon": "fsuae",
+  "label": "FS-UAE",
+  "description": "FS-UAE is a cross-platform Amiga emulator.",
+  "license": "GNU General Public License v2.0 or later",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "net.fsuae.FS-UAE",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

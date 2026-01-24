@@ -1,11 +1,12 @@
 {
-	"icon": "taisei",
-	"label": "Taisei Project",
-	"description": "A free 2D shoot 'em up inspired by classic danmaku shooters.",
-	"license": "Open Source",
-	"category": "Games",
-	"flatpak": {
-		"app_id": "org.taisei_project.Taisei",
-		"remote": "flathub"
-	}
+  "icon": "taisei",
+  "label": "Taisei Project",
+  "description": "A free 2D shoot 'em up inspired by classic danmaku shooters.",
+  "license": "Open Source",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "org.taisei_project.Taisei",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

@@ -1,11 +1,12 @@
 {
-	"icon": "qrookie",
-	"label": "QRookie",
-	"description": "QRookie - Install Quest games from ROOKIE Public Mirrors.",
-	"license": "Open Source",
-	"category": "Games",
-	"flatpak": {
-		"app_id": "io.github.glaumar.QRookie",
-		"remote": "flathub"
-	}
+  "icon": "qrookie",
+  "label": "QRookie",
+  "description": "QRookie - Install Quest games from ROOKIE Public Mirrors.",
+  "license": "Open Source",
+  "category": "Games",
+  "flatpak": {
+    "app_id": "io.github.glaumar.QRookie",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

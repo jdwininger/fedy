@@ -1,11 +1,12 @@
 {
-	"icon": "ryujinx",
-	"label": "Ryujinx",
-	"description": "Ryujinx is an open-source Nintendo Switch emulator.",
-	"license": "GNU General Public License v2.0 or later",
-	"category": "Emulators",
-	"flatpak": {
-		"app_id": "io.github.ryubing.Ryujinx",
-		"remote": "flathub"
-	}
+  "icon": "ryujinx",
+  "label": "Ryujinx",
+  "description": "Ryujinx is an open-source Nintendo Switch emulator.",
+  "license": "GNU General Public License v2.0 or later",
+  "category": "Emulators",
+  "flatpak": {
+    "app_id": "io.github.ryubing.Ryujinx",
+    "remote": "flathub",
+    "user_install": true
+  }
 }

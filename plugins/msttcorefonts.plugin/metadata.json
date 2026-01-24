@@ -1,5 +1,5 @@
 {
-	"icon": "preferences-desktop-font",
+	"icon": "ttf",
 	"label": "Microsoft TrueType core fonts",
 	"description": "Times New Roman, Arial, Comic Sans and other core Microsoft fonts.",
 	"license": "Freeware",

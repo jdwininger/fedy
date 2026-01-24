@@ -1,12 +1,13 @@
 {
-	"icon": "gimp",
-	"label": "GIMP (Beta)",
-	"description": "GIMP (beta) is an excellent bitmap and photo editing application.",
-	"license": "Open Source",
-	"category": "Apps",
-	"flatpak": {
-		"app_id": "org.gimp.GIMP",
-		"remote": "flathub",
-		"branch": "beta"
-	}
+  "icon": "gimp",
+  "label": "GIMP (Beta)",
+  "description": "GIMP (beta) is an excellent bitmap and photo editing application.",
+  "license": "Open Source",
+  "category": "Apps",
+  "flatpak": {
+    "app_id": "org.gimp.GIMP",
+    "remote": "flathub",
+    "branch": "beta",
+    "user_install": true
+  }
 }
