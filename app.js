@@ -852,7 +852,11 @@ const Application = new Lang.Class({
                 });
 
                 let label = new Gtk.Label({ halign: Gtk.Align.START });
-                label.set_markup("<b>" + plugin.label + "</b>");
+                // Remove redundant parenthetical suffixes like "(Flathub)" or "(Flatpak)" for
+                // the plugin listing display so the UI is cleaner. Keep plugin.label unchanged
+                // internally for logging/notifications.
+                let displayLabel = plugin.label ? String(plugin.label).replace(/\s*\((?:Flathub|Flatpak)\)$/i, '') : '';
+                label.set_markup("<b>" + displayLabel + "</b>");
                 titleBox.append(label);
 
                 let license = new Gtk.Label({ halign: Gtk.Align.START });
@@ -2075,13 +2079,18 @@ const Application = new Lang.Class({
                     if (status2 === 0) {
                         // Installed system-wide — we cannot safely uninstall system
                         // installs from the user context. Mark as installed and
-                        // disable the button with an explanatory tooltip.
+                        // disable the button with an explanatory tooltip that
+                        // also includes the apt command users can run as root.
                         button.set_label("Installed (system)");
                         try {
                             button.get_style_context().remove_class('suggested-action');
                             button.get_style_context().remove_class('destructive-action');
                         } catch (e) {}
-                        try { button.set_tooltip_text('This Flatpak is installed system-wide and cannot be removed here.'); } catch (e) {}
+                        try {
+                            let tip = 'This Flatpak is installed system-wide and cannot be removed here.\n' +
+                                      'To remove it, run: sudo flatpak uninstall --system -y ' + app_id;
+                            button.set_tooltip_text(tip);
+                        } catch (e) {}
                         button.set_sensitive(false);
                     } else {
                         button.set_label("Install");
