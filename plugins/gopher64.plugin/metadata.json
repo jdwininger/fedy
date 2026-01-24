@@ -1,8 +1,8 @@
 {
-  "label": "Gopher64 (Flathub)",
+  "label": "Gopher64",
   "description": "Gopher64 is a Commodore 64 emulator available on Flathub.",
   "category": "Emulators",
-  "icon": "icon",
+  "icon": "gopher64",
   "license": "GPL-2.0-or-later",
   "flatpak": {
     "app_id": "io.github.gopher64.gopher64",

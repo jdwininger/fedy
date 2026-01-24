@@ -1,6 +1,6 @@
 {
   "icon": "steam",
-  "label": "Steam (Flathub)",
+  "label": "Steam",
   "description": "Install Steam from Flathub (Flatpak).",
   "license": "Proprietary",
   "category": "Games",
