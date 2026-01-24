@@ -58,3 +58,20 @@ uninstall:
 	rm -f $(DESTDIR)/usr/share/polkit-1/actions/org.folkswithhats.pkexec.run-as-root.policy
 
 	@-if test -z $(DESTDIR); then gtk-update-icon-cache -f -t $(DESTDIR)/usr/share/icons/hicolor; fi
+
+uninstall-user:
+	@echo "Uninstalling Fedy from current user's ~/.local..."
+	# Remove user data and binaries
+	rm -rf $(HOME)/.local/share/fedy/
+	 rm -f $(HOME)/.local/bin/fedy
+
+	# Remove desktop & appdata entries
+	rm -f $(HOME)/.local/share/applications/org.folkswithhats.fedy.desktop
+	rm -f $(HOME)/.local/share/appdata/fedy.appdata.xml
+
+	# Remove icons from the user's icon cache area
+	rm -f $(HOME)/.local/share/icons/hicolor/scalable/apps/fedy.svg
+	rm -f $(HOME)/.local/share/icons/hicolor/scalable/apps/fedy-symbolic.svg
+
+	@-gtk-update-icon-cache -f -t $(HOME)/.local/share/icons/hicolor || true
+	@echo "Note: polkit policies cannot be uninstalled at user level; system features remain."
